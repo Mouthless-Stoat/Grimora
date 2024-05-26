@@ -1,5 +1,15 @@
 mod lexer;
+mod parser;
+
+use lexer::tokenize;
+use parser::Parser;
 
 fn main() {
-    println!("{:?}", lexer::tokenize(String::from("1 + 1")));
+    println!(
+        "{:?}",
+        (Parser {
+            tokens: tokenize("1".to_string()).unwrap()
+        })
+        .gen_ast(),
+    );
 }

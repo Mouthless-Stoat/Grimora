@@ -43,7 +43,7 @@ pub enum Token {
     Slash,
 }
 
-pub fn tokenize(source: String) -> Result<Vec<Token>, String> {
+pub fn tokenize(source: String) -> Result<VecDeque<Token>, String> {
     let mut tokens = Vec::<Token>::new();
     let mut src: VecDeque<char> = source.chars().collect();
 
@@ -89,7 +89,7 @@ pub fn tokenize(source: String) -> Result<Vec<Token>, String> {
         }
     }
 
-    return Ok(tokens);
+    return Ok(VecDeque::from(tokens));
 }
 
 #[cfg(test)]
