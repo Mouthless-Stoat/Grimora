@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::process;
 
 macro_rules! char_token {
     ($src:ident, $tokens:ident, $($char:literal: $token:expr),*) => {
@@ -34,7 +33,7 @@ macro_rules! multichar_token {
     }};
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     Int(usize),
     Iden(String),
@@ -42,10 +41,9 @@ pub enum Token {
     Minus,
     Star,
     Slash,
-    Arrow,
 }
 
-pub fn tokenize(source: String) -> Vec<Token> {
+pub fn tokenize(source: String) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::<Token>::new();
     let mut src: VecDeque<char> = source.chars().collect();
 
@@ -66,8 +64,7 @@ pub fn tokenize(source: String) -> Vec<Token> {
         );
 
         if !c.is_alphanumeric() {
-            println!("I DON'T KNOW WHAT THIS TOKEN IS: {:?}", c);
-            process::exit(1)
+            return Err("Idk what this token is".to_string());
         }
 
         let is_alpha = c.is_alphabetic();
@@ -92,5 +89,22 @@ pub fn tokenize(source: String) -> Vec<Token> {
         }
     }
 
-    return tokens;
+    return Ok(tokens);
+}
+
+#[cfg(test)]
+mod test {
+    use crate::lexer::{tokenize, Token};
+
+    macro_rules! test {
+        ($name:ident, $source:literal => $output:expr) => {
+            #[test]
+            fn $name() {
+                assert_eq!(tokenize($source.to_string()).unwrap(), $output)
+            }
+        };
+    }
+
+    test!(simple, "1 + 1" => [Token::Int(1), Token::Plus, Token::Int(1)]);
+    test!(identifier, "thisIsAIdentifier" => [Token::Iden("thisIsAIdentifier".to_string())]);
 }

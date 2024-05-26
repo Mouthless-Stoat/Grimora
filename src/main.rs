@@ -1,6 +1,5 @@
-#![feature(char_indices_offset)]
 mod lexer;
 
 fn main() {
-    println!("{:?}", lexer::tokenize(String::from("==> ++ 112 ausyhds")));
+    println!("{:?}", lexer::tokenize(String::from("1 + 1")));
 }
