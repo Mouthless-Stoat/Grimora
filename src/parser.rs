@@ -1,22 +1,31 @@
+mod expr;
+mod stmt;
+
+use expr::Expr;
 use std::collections::VecDeque;
+use stmt::Stmt;
 
-use super::lexer::Token;
-
-pub trait Transpilable {
-    fn transpile(&self) -> String;
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Expr {
-    Int(usize),
-    Iden(String),
-    Bin(Box<Expr>, Token, Box<Expr>),
-}
+use crate::lexer::Token;
 
 #[derive(Debug, PartialEq)]
 pub enum Node {
     Expr(Expr),
-    Stmt(),
+    Stmt(Stmt),
+}
+
+impl Node {
+    fn unwrap_expr(self) -> Expr {
+        match self {
+            Node::Expr(it) => it,
+            _ => unreachable!(),
+        }
+    }
+    fn unwrap_stmt(self) -> Stmt {
+        match self {
+            Node::Stmt(it) => it,
+            _ => unreachable!(),
+        }
+    }
 }
 
 pub struct Parser {
@@ -27,7 +36,7 @@ impl Parser {
     pub fn gen_ast(&mut self) -> Vec<Node> {
         let mut ast: Vec<Node> = Vec::new();
 
-        while !self.tokens.is_empty() {
+        while !self.tokens.is_empty() && !matches!(self.curr(), Token::EOF) {
             ast.push(self.parse_stmt())
         }
 
@@ -35,6 +44,10 @@ impl Parser {
     }
 
     fn peek(&self) -> &Token {
+        self.tokens.get(1).unwrap()
+    }
+
+    fn curr(&self) -> &Token {
         self.tokens.get(0).unwrap()
     }
 
@@ -43,15 +56,30 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Node {
-        match self.peek() {
-            _ => self.parse_unit(),
+        match self.curr() {
+            _ => Node::Expr(self.parse_bin()),
         }
     }
 
-    fn parse_unit(&mut self) -> Node {
+    /// Parse a binary expression
+    fn parse_bin(&mut self) -> Expr {
+        let mut left = self.parse_unit();
+        while matches!(
+            self.curr(),
+            Token::Plus | Token::Minus | Token::Star | Token::Slash
+        ) {
+            let op = self.next();
+            let right = self.parse_unit();
+            left = Expr::bin(left, op, right);
+        }
+        return left;
+    }
+
+    /// Parse a unit or literal
+    fn parse_unit(&mut self) -> Expr {
         match self.next() {
-            Token::Int(int) => Node::Expr(Expr::Int(int)),
-            Token::Iden(iden) => Node::Expr(Expr::Iden(iden)),
+            Token::Int(it) => Expr::Int(it),
+            Token::Iden(it) => Expr::Iden(it),
             _ => panic!("Wahoo you encounter a bug :D"),
         }
     }
@@ -59,7 +87,7 @@ impl Parser {
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::tokenize;
+    use crate::lexer::{tokenize, Token};
     use crate::parser::{Expr, Node, Parser};
 
     macro_rules! test {
@@ -78,4 +106,5 @@ mod test {
     }
 
     test!(simple, "1" => [Node::Expr(Expr::Int(1))]);
+    test!(bin, "1 + 1" => [Node::Expr(Expr::bin(Expr::Int(1), Token::Plus, Expr::Int(1)))]);
 }

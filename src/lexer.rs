@@ -41,6 +41,8 @@ pub enum Token {
     Minus,
     Star,
     Slash,
+
+    EOF,
 }
 
 pub fn tokenize(source: String) -> Result<VecDeque<Token>, String> {
@@ -89,6 +91,8 @@ pub fn tokenize(source: String) -> Result<VecDeque<Token>, String> {
         }
     }
 
+    tokens.push(Token::EOF);
+
     return Ok(VecDeque::from(tokens));
 }
 
@@ -105,6 +109,6 @@ mod test {
         };
     }
 
-    test!(simple, "1 + 1" => [Token::Int(1), Token::Plus, Token::Int(1)]);
-    test!(identifier, "thisIsAIdentifier" => [Token::Iden("thisIsAIdentifier".to_string())]);
+    test!(simple, "1 + 1" => [Token::Int(1), Token::Plus, Token::Int(1),Token::EOF]);
+    test!(identifier, "thisIsAIdentifier" => [Token::Iden("thisIsAIdentifier".to_string()), Token::EOF]);
 }
