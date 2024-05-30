@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fmt::Display;
 
 macro_rules! char_token {
     ($src:ident, $tokens:ident, $($char:literal: $token:expr),*) => {
@@ -23,7 +24,7 @@ macro_rules! multichar_token {
         let t = $src.make_contiguous();
         $(
             if t.len() >= $multi.len()
-                && t.get(..$multi.len()).unwrap().iter().collect::<String>() == $multi.to_string()
+                && t.get(..$multi.len()).unwrap().iter().collect() == $multi.to_string()
             {
                 $tokens.push($token);
                 $multi.chars().for_each(|_| { $src.pop_front(); });
@@ -43,6 +44,18 @@ pub enum Token {
     Slash,
 
     EOF,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Plus => write!(f, "+"),
+            Token::Minus => write!(f, "-"),
+            Token::Star => write!(f, "*"),
+            Token::Slash => write!(f, "/"),
+            _ => unimplemented!(),
+        }
+    }
 }
 
 pub fn tokenize(source: String) -> Result<VecDeque<Token>, String> {
@@ -66,7 +79,7 @@ pub fn tokenize(source: String) -> Result<VecDeque<Token>, String> {
         );
 
         if !c.is_alphanumeric() {
-            return Err("Idk what this token is".to_string());
+            todo!("Return a lexer error instead of string");
         }
 
         let is_alpha = c.is_alphabetic();

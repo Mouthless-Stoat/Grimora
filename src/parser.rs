@@ -13,21 +13,6 @@ pub enum Node {
     Stmt(Stmt),
 }
 
-impl Node {
-    fn unwrap_expr(self) -> Expr {
-        match self {
-            Node::Expr(it) => it,
-            _ => unreachable!(),
-        }
-    }
-    fn unwrap_stmt(self) -> Stmt {
-        match self {
-            Node::Stmt(it) => it,
-            _ => unreachable!(),
-        }
-    }
-}
-
 pub struct Parser {
     pub tokens: VecDeque<Token>,
 }
@@ -41,10 +26,6 @@ impl Parser {
         }
 
         return ast;
-    }
-
-    fn peek(&self) -> &Token {
-        self.tokens.get(1).unwrap()
     }
 
     fn curr(&self) -> &Token {
@@ -80,7 +61,7 @@ impl Parser {
         match self.next() {
             Token::Int(it) => Expr::Int(it),
             Token::Iden(it) => Expr::Iden(it),
-            _ => panic!("Wahoo you encounter a bug :D"),
+            _ => todo!("Return a parser error instead"),
         }
     }
 }
@@ -89,6 +70,19 @@ impl Parser {
 mod test {
     use crate::lexer::{tokenize, Token};
     use crate::parser::{Expr, Node, Parser};
+
+    // Helper to make typing ast less annoying
+    macro_rules! ast {
+        ($($node:expr),*) => {
+            {
+                let mut t = Vec::new();
+                $(
+                    t.push(Node::Expr($node));
+                )*
+                t
+            }
+        };
+    }
 
     macro_rules! test {
         ($name:ident, $source:literal => $output:expr) => {
@@ -105,6 +99,6 @@ mod test {
         };
     }
 
-    test!(simple, "1" => [Node::Expr(Expr::Int(1))]);
-    test!(bin, "1 + 1" => [Node::Expr(Expr::bin(Expr::Int(1), Token::Plus, Expr::Int(1)))]);
+    test!(simple, "1" => ast![Expr::Int(1)]);
+    test!(bin, "1 + 1" => ast![Expr::bin(Expr::Int(1), Token::Plus, Expr::Int(1))]);
 }

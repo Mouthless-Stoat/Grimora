@@ -11,9 +11,14 @@ pub enum Expr {
 impl Transpilable for Expr {
     fn transpile(self) -> String {
         match self {
-            Expr::Int(_) => todo!(),
-            Expr::Iden(_) => todo!(),
-            Expr::Bin(_, _, _) => todo!(),
+            Expr::Int(int) => int.to_string(),
+            Expr::Iden(iden) => iden,
+            Expr::Bin(left, op, right) => format!(
+                "{} {} {}",
+                left.transpile(),
+                op.to_string(),
+                right.transpile()
+            ),
         }
     }
 }
