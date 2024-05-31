@@ -4,7 +4,7 @@ use crate::lexer::Token;
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    Int(usize),
+    Int(f64),
     Iden(String),
     Bin(Box<Expr>, Token, Box<Expr>),
 }

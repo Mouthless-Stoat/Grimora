@@ -6,10 +6,12 @@ use lexer::tokenize;
 use parser::Parser;
 
 fn main() {
+    let input = "1*4-9";
     let ast = (Parser {
-        tokens: tokenize("1+110 * 102 + 19".to_string()).unwrap(),
+        tokens: tokenize(input.to_string()).unwrap(),
     })
     .gen_ast();
 
+    println!("{}", input);
     println!("{}", ast[0]);
 }

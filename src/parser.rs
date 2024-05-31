@@ -61,7 +61,17 @@ impl Parser {
         while matches!(self.curr(), Token::Plus | Token::Minus) {
             let op = self.next();
             let right = self.parse_mul_bin();
-            left = Expr::bin(left, op, right);
+
+            // constant collapsing time
+            if let (Expr::Int(l), Expr::Int(r)) = (&left, &right) {
+                left = Expr::Int(match op {
+                    Token::Plus => l + r,
+                    Token::Minus => l - r,
+                    _ => unreachable!(),
+                })
+            } else {
+                left = Expr::bin(left, op, right);
+            };
         }
         return left;
     }
@@ -71,7 +81,16 @@ impl Parser {
         while matches!(self.curr(), Token::Star | Token::Slash) {
             let op = self.next();
             let right = self.parse_unit();
-            left = Expr::bin(left, op, right);
+
+            if let (Expr::Int(l), Expr::Int(r)) = (&left, &right) {
+                left = Expr::Int(match op {
+                    Token::Star => l * r,
+                    Token::Slash => l / r,
+                    _ => unreachable!(),
+                })
+            } else {
+                left = Expr::bin(left, op, right);
+            };
         }
         return left;
     }

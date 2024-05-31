@@ -36,7 +36,7 @@ macro_rules! multichar_token {
 
 #[derive(PartialEq)]
 pub enum Token {
-    Int(usize),
+    Int(f64),
     Iden(String),
     Plus,
     Minus,
@@ -130,6 +130,6 @@ mod test {
         };
     }
 
-    test!(simple, "1 + 1" => [Token::Int(1), Token::Plus, Token::Int(1),Token::EOF]);
+    test!(simple, "1 + 1" => [Token::Int(1.0), Token::Plus, Token::Int(1.0),Token::EOF]);
     test!(identifier, "thisIsAIdentifier" => [Token::Iden("thisIsAIdentifier".to_string()), Token::EOF]);
 }
