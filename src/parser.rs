@@ -3,16 +3,25 @@ mod stmt;
 
 use expr::Expr;
 use std::collections::VecDeque;
+use std::fmt::Display;
 use stmt::Stmt;
 
 use crate::lexer::Token;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Node {
     Expr(Expr),
     Stmt(Stmt),
 }
 
+impl Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Node::Expr(expr) => write!(f, "{}", expr),
+            Node::Stmt(stmt) => write!(f, "{}", stmt),
+        }
+    }
+}
 pub struct Parser {
     pub tokens: VecDeque<Token>,
 }
@@ -38,17 +47,28 @@ impl Parser {
 
     fn parse_stmt(&mut self) -> Node {
         match self.curr() {
-            _ => Node::Expr(self.parse_bin()),
+            _ => self.parse_expr(),
         }
     }
 
+    fn parse_expr(&mut self) -> Node {
+        Node::Expr(self.parse_add_bin())
+    }
+
     /// Parse a binary expression
-    fn parse_bin(&mut self) -> Expr {
+    fn parse_add_bin(&mut self) -> Expr {
+        let mut left = self.parse_mul_bin();
+        while matches!(self.curr(), Token::Plus | Token::Minus) {
+            let op = self.next();
+            let right = self.parse_mul_bin();
+            left = Expr::bin(left, op, right);
+        }
+        return left;
+    }
+
+    fn parse_mul_bin(&mut self) -> Expr {
         let mut left = self.parse_unit();
-        while matches!(
-            self.curr(),
-            Token::Plus | Token::Minus | Token::Star | Token::Slash
-        ) {
+        while matches!(self.curr(), Token::Star | Token::Slash) {
             let op = self.next();
             let right = self.parse_unit();
             left = Expr::bin(left, op, right);

@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 macro_rules! char_token {
     ($src:ident, $tokens:ident, $($char:literal: $token:expr),*) => {
@@ -34,7 +34,7 @@ macro_rules! multichar_token {
     }};
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Token {
     Int(usize),
     Iden(String),
@@ -46,6 +46,7 @@ pub enum Token {
     EOF,
 }
 
+// impl Display for to string conversion
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -55,6 +56,13 @@ impl Display for Token {
             Token::Slash => write!(f, "/"),
             _ => unimplemented!(),
         }
+    }
+}
+
+// impl Debug for printing using the same impl for Display
+impl Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

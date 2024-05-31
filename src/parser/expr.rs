@@ -1,5 +1,6 @@
+use std::fmt::Display;
+
 use crate::lexer::Token;
-use crate::trans::Transpilable;
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
@@ -8,16 +9,17 @@ pub enum Expr {
     Bin(Box<Expr>, Token, Box<Expr>),
 }
 
-impl Transpilable for Expr {
-    fn transpile(self) -> String {
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Int(int) => int.to_string(),
-            Expr::Iden(iden) => iden,
-            Expr::Bin(left, op, right) => format!(
+            Expr::Int(int) => write!(f, "{}", int),
+            Expr::Iden(iden) => write!(f, "{}", iden),
+            Expr::Bin(left, op, right) => write!(
+                f,
                 "{} {} {}",
-                left.transpile(),
+                left.to_string(),
                 op.to_string(),
-                right.transpile()
+                right.to_string()
             ),
         }
     }
