@@ -12,11 +12,14 @@ fn main() {
 
     println!("Input:\n{}", input);
 
-    let tokens = tokenize(input).unwrap();
-    let ast = (Parser { tokens }).gen_ast();
-
-    println!("Raw Call:\n{}", ast[0]);
-    println!("Transpile:\n{}", transpile(ast))
+    let tokens = tokenize(input);
+    println!("{:?}", tokens);
+    let ast = (Parser {
+        tokens: tokens.unwrap(),
+    })
+    .gen_ast();
+    println!("{:?}", ast)
+    // println!("Transpile:\n{}", transpile(ast))
 
     // println!("{:?}", tokenize("1 + 1".to_string()).unwrap())
 }

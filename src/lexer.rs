@@ -1,12 +1,8 @@
-use core::f64;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
+use std::{char, usize};
 
-#[derive(Debug, PartialEq)]
-pub struct TokenLoc {
-    pub token: Token,
-    pub loc: (usize, usize),
-}
+pub type TokenLoc = (Token, (usize, usize));
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
@@ -16,6 +12,7 @@ pub enum Token {
     Minus,
     Star,
     Slash,
+    Arrow,
 
     When,
     Attack,
@@ -24,6 +21,7 @@ pub enum Token {
     Death,
     Move,
 
+    EOL,
     EOF,
 }
 
@@ -41,51 +39,79 @@ impl Display for Token {
 }
 
 impl Token {
+    #[warn(dead_code)]
     pub fn iden(name: &str) -> Token {
         Token::Iden(name.to_string())
     }
 
+    #[warn(dead_code)]
     pub fn num(value: usize) -> Token {
         Token::Num(value as f32)
     }
 }
-
-pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, String> {
+macro_rules! multi_token {
+    ($src:ident, $tokens:ident, $loc:ident, $($multi:literal => $tk:expr),*) => {
+        {
+            let t = $src.make_contiguous();
+            $(
+                {
+                    let len = $multi.len();
+                    if t.len() >= len && t[..len].iter().map(|(_, c)| c).collect::<String>() == $multi
+                    {
+                        $tokens.push(($tk, $loc));
+                        $tokens.drain(..len);
+                        continue;
+                    }
+                }
+            )*
+        }
+    };
+}
+pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, (char, (usize, usize))> {
     let mut tokens = Vec::<TokenLoc>::new();
 
     for (num, line) in source.lines().enumerate() {
         let mut src: VecDeque<(usize, char)> = line.char_indices().collect();
 
         while src.len() > 0 {
-            let idx = src[0].0;
+            // get some important stuff
+            let loc = (num, src[0].0);
             let c = src[0].1;
 
+            // skipping time
             if c.is_whitespace() {
                 src.pop_front();
                 continue;
             }
 
-            if let Some(tk) = {
-                match c {
-                    '+' => Some(Token::Plus),
-                    '-' => Some(Token::Minus),
-                    '*' => Some(Token::Star),
-                    '/' => Some(Token::Slash),
-                    _ => None,
-                }
+            // check for longer token
+            multi_token!(
+                src, tokens, loc,
+                "=>" => Token::Arrow
+            );
+
+            // check for sing char token
+            if let Some(tk) = 'o: {
+                // wakcy ik but it reduce typing Some on every line
+                Some(match c {
+                    '+' => Token::Plus,
+                    '-' => Token::Minus,
+                    '*' => Token::Star,
+                    '/' => Token::Slash,
+                    _ => break 'o None,
+                })
             } {
-                tokens.push(TokenLoc {
-                    token: tk,
-                    loc: (num, idx),
-                });
+                tokens.push((tk, loc));
                 src.pop_front();
                 continue;
             };
 
+            // if it not a special character then i have to be number or alpha
             if !c.is_alphanumeric() {
-                todo!("Return a lexer error instead of string");
+                return Err((c, loc)); // lexer don't know what this is
             }
 
+            // constructing number and alphabet time
             let is_alpha = c.is_alphabetic();
             let cond: fn(&(usize, char)) -> bool = match is_alpha {
                 true => |c| c.1.is_alphabetic(),
@@ -103,8 +129,8 @@ pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, String> {
             };
 
             match is_alpha {
-                true => tokens.push(TokenLoc {
-                    token: match acc.as_str() {
+                true => tokens.push((
+                    match acc.as_str() {
                         "when" => Token::When,
                         "attack" => Token::Attack,
                         "summon" => Token::Summon,
@@ -113,41 +139,37 @@ pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, String> {
                         "move" => Token::Move,
                         _ => Token::Iden(acc),
                     },
-                    loc: (num, idx),
-                }),
-                false => tokens.push(TokenLoc {
-                    token: Token::Num(acc.parse().unwrap()),
-                    loc: (num, idx),
-                }),
+                    loc,
+                )),
+                false => tokens.push((Token::Num(acc.parse().unwrap()), loc)),
             }
         }
+
+        tokens.push((Token::EOL, (num, line.len())))
     }
 
-    tokens.push(TokenLoc {
-        token: Token::EOF,
-        loc: (usize::MAX, usize::MAX),
-    });
+    tokens.push((Token::EOF, (usize::MAX, usize::MAX)));
 
     return Ok(VecDeque::from(tokens));
 }
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::{tokenize, Token, TokenLoc};
+    use crate::lexer::{tokenize, Token};
 
     // macro to help with writing test
     macro_rules! test {
         ($name:ident, $source:literal => [$($tk:expr , $line:literal:$col:literal);*]) => {
             #[test]
             fn $name() {
-                assert_eq!(tokenize($source.to_string()).unwrap(), [$(TokenLoc {token: $tk, loc: ($line, $col)},)* TokenLoc {token: Token::EOF, loc: (usize::MAX, usize::MAX)}])
+                assert_eq!(tokenize($source.to_string()).unwrap(), [$(($tk, ($line, $col)),)* (Token::EOF, (usize::MAX, usize::MAX))])
             }
         };
     }
 
-    test!(simple, "1 + 1" => [Token::num(1),0:0; Token::Plus,0:2; Token::num(1),0:4]);
-    test!(identifier, "thisIsAIdentifier" => [Token::iden("thisIsAIdentifier"),0:0]);
-    test!(keyword, "when attack" => [Token::When,0:0; Token::Attack,0:5]);
+    test!(simple, "1 + 1" => [Token::num(1),0:0; Token::Plus,0:2; Token::num(1),0:4; Token::EOL,0:5]);
+    test!(identifier, "thisIsAIdentifier" => [Token::iden("thisIsAIdentifier"),0:0; Token::EOL,0:17]);
+    test!(keyword, "when attack" => [Token::When,0:0; Token::Attack,0:5; Token::EOL,0:11]);
 
-    test!(multiline, "hello\n12" => [Token::iden("hello"),0:0; Token::num(12),1:0]);
+    test!(multiline, "hello\n12" => [Token::iden("hello"),0:0; Token::EOL,0:5; Token::num(12),1:0; Token::EOL,1:2]);
 }
