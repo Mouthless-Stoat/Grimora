@@ -5,13 +5,18 @@ mod trans;
 use lexer::tokenize;
 use parser::Parser;
 
-fn main() {
-    let input = "1*4-9";
-    let ast = (Parser {
-        tokens: tokenize(input.to_string()).unwrap(),
-    })
-    .gen_ast();
+use crate::trans::transpile;
 
-    println!("{}", input);
-    println!("{}", ast[0]);
+fn main() {
+    let input = "1*8".to_string();
+
+    println!("Input:\n{}", input);
+
+    let tokens = tokenize(input).unwrap();
+    let ast = (Parser { tokens }).gen_ast();
+
+    println!("Raw Call:\n{}", ast[0]);
+    println!("Transpile:\n{}", transpile(ast))
+
+    // println!("{:?}", tokenize("1 + 1".to_string()).unwrap())
 }

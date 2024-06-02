@@ -6,14 +6,15 @@ use std::collections::VecDeque;
 use std::fmt::Display;
 use stmt::Stmt;
 
-use crate::lexer::Token;
+use crate::lexer::{Token, TokenLoc};
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Node {
     Expr(Expr),
     Stmt(Stmt),
 }
 
+// impl Display for node for transpiler later
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -22,8 +23,9 @@ impl Display for Node {
         }
     }
 }
+
 pub struct Parser {
-    pub tokens: VecDeque<Token>,
+    pub tokens: VecDeque<TokenLoc>,
 }
 
 impl Parser {
@@ -38,11 +40,11 @@ impl Parser {
     }
 
     fn curr(&self) -> &Token {
-        self.tokens.get(0).unwrap()
+        &self.tokens.get(0).unwrap().token
     }
 
     fn next(&mut self) -> Token {
-        self.tokens.pop_front().unwrap()
+        self.tokens.pop_front().unwrap().token
     }
 
     fn parse_stmt(&mut self) -> Node {
@@ -63,8 +65,8 @@ impl Parser {
             let right = self.parse_mul_bin();
 
             // constant collapsing time
-            if let (Expr::Int(l), Expr::Int(r)) = (&left, &right) {
-                left = Expr::Int(match op {
+            if let (Expr::Num(l), Expr::Num(r)) = (&left, &right) {
+                left = Expr::Num(match op {
                     Token::Plus => l + r,
                     Token::Minus => l - r,
                     _ => unreachable!(),
@@ -82,8 +84,8 @@ impl Parser {
             let op = self.next();
             let right = self.parse_unit();
 
-            if let (Expr::Int(l), Expr::Int(r)) = (&left, &right) {
-                left = Expr::Int(match op {
+            if let (Expr::Num(l), Expr::Num(r)) = (&left, &right) {
+                left = Expr::Num(match op {
                     Token::Star => l * r,
                     Token::Slash => l / r,
                     _ => unreachable!(),
@@ -98,7 +100,7 @@ impl Parser {
     /// Parse a unit or literal
     fn parse_unit(&mut self) -> Expr {
         match self.next() {
-            Token::Int(it) => Expr::Int(it),
+            Token::Num(it) => Expr::Num(it),
             Token::Iden(it) => Expr::Iden(it),
             _ => todo!("Return a parser error instead"),
         }
@@ -107,7 +109,7 @@ impl Parser {
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::{tokenize, Token};
+    use crate::lexer::tokenize;
     use crate::parser::{Expr, Node, Parser};
 
     // Helper to make typing ast less annoying
@@ -138,6 +140,9 @@ mod test {
         };
     }
 
-    test!(simple, "1" => ast![Expr::Int(1)]);
-    test!(bin, "1 + 1" => ast![Expr::bin(Expr::Int(1), Token::Plus, Expr::Int(1))]);
+    test!(simple, "1" => ast![Expr::num(1)]);
+    test!(bin, "1 + 1" => ast![Expr::num(2)]);
+
+    test!(multiline, "hello\n12"=>ast![Expr::iden("hello"), Expr::num(12)]);
+    test!(line_break, "1\n+\n1" => ast![Expr::num(2)]);
 }
