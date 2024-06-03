@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::fmt::Display;
 use stmt::Stmt;
 
-use crate::lexer::{Token, TokenLoc};
+use crate::lexer::{Loc, Token, TokenLoc};
 
 #[derive(Debug, PartialEq)]
 pub enum Node {
@@ -25,16 +25,25 @@ impl Display for Node {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ParserError {
-    UnexpectedToken(Token, (usize, usize)),
-    ExpectToken(Token, (usize, usize)),
+pub enum ParseError {
+    UnexpectedToken {
+        get: Token,
+        loc: Loc,
+        len: usize,
+    },
+    ExpectToken {
+        get: Token,
+        loc: Loc,
+        want: Vec<Token>,
+        len: usize,
+    },
 }
 
 pub struct Parser {
     pub tokens: VecDeque<TokenLoc>,
 }
 
-type Maybe<T> = Result<T, ParserError>;
+type Maybe<T> = Result<T, ParseError>;
 
 impl Parser {
     pub fn gen_ast(&mut self) -> Maybe<Vec<Node>> {
@@ -42,17 +51,22 @@ impl Parser {
 
         while !self.tokens.is_empty() && !matches!(self.curr(), Token::EOF) {
             ast.push(self.parse_stmt()?);
-            self.expect(Token::EOL)?
+            self.expect(vec![Token::EOL])?;
         }
 
         return Ok(ast);
     }
 
-    fn expect(&mut self, token: Token) -> Maybe<()> {
+    fn expect(&mut self, what: Vec<Token>) -> Maybe<Token> {
         let next = self.next_loc();
-        match next.0 == token {
-            true => Ok(()),
-            false => Err(ParserError::ExpectToken(token, (next.1 .0, next.1 .1))),
+        match what.iter().any(|tk| next.0 == *tk) {
+            true => Ok(next.0),
+            false => Err(ParseError::ExpectToken {
+                len: next.0.get_len(),
+                get: next.0,
+                loc: (next.1 .0, next.1 .1),
+                want: what,
+            }),
         }
     }
 
@@ -69,16 +83,45 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Maybe<Node> {
-        match self.curr() {
-            _ => self.parse_expr(),
+        Ok('o: {
+            Node::Stmt(match self.curr() {
+                Token::Var => self.parse_var_decl()?,
+                _ => break 'o Node::Expr(self.parse_expr()?),
+            })
+        })
+    }
+
+    // STMT PARSE
+    fn parse_var_decl(&mut self) -> Maybe<Stmt> {
+        self.next();
+        let name = self.next_loc();
+        if matches!(name.0, Token::Iden(_)) {
+            let name = name.0;
+            self.expect(vec![Token::Equal])?;
+            let val = self.parse_expr()?;
+            Ok(Stmt::var_decl(
+                match name {
+                    Token::Iden(n) => n,
+                    _ => unreachable!(),
+                },
+                val,
+            ))
+        } else {
+            Err(ParseError::ExpectToken {
+                len: name.0.get_len(),
+                get: name.0,
+                loc: name.1,
+                want: vec![Token::Iden("identifier".to_string())],
+            })
         }
     }
 
-    fn parse_expr(&mut self) -> Maybe<Node> {
-        Ok(Node::Expr(self.parse_add_bin()?))
+    // EXPR PARSE
+    fn parse_expr(&mut self) -> Maybe<Expr> {
+        Ok(self.parse_add_bin()?)
     }
 
-    /// Parse a binary expression
+    /// Parse add/sub binary expression
     fn parse_add_bin(&mut self) -> Maybe<Expr> {
         let mut left = self.parse_mul_bin()?;
         while matches!(self.curr(), Token::Plus | Token::Minus) {
@@ -99,6 +142,7 @@ impl Parser {
         return Ok(left);
     }
 
+    /// Parse mul/div binary expression
     fn parse_mul_bin(&mut self) -> Maybe<Expr> {
         let mut left = self.parse_unit()?;
         while matches!(self.curr(), Token::Star | Token::Slash) {
@@ -121,19 +165,24 @@ impl Parser {
     /// Parse a unit or literal
     fn parse_unit(&mut self) -> Maybe<Expr> {
         let curr = self.next_loc();
-        let expr = match curr.0 {
+        Ok(match curr.0 {
             Token::Num(it) => Expr::Num(it),
             Token::Iden(it) => Expr::Iden(it),
-            _ => return Err(ParserError::UnexpectedToken(curr.0, curr.1)),
-        };
-        Ok(expr)
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    len: curr.0.get_len(),
+                    get: curr.0,
+                    loc: curr.1,
+                });
+            }
+        })
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::{tokenize, Token};
-    use crate::parser::{Expr, Node, Parser, ParserError};
+    use crate::lexer::{lex, Loc, Token};
+    use crate::parser::{Expr, Node, ParseError, Parser, Stmt};
 
     // Helper to make typing ast less annoying
     macro_rules! ast {
@@ -154,7 +203,7 @@ mod test {
             fn $name() {
                 assert_eq!(
                     (Parser {
-                        tokens: tokenize($source.to_string()).unwrap()
+                        tokens: lex($source.to_string()).unwrap()
                     })
                     .gen_ast()
                     .unwrap(),
@@ -170,7 +219,7 @@ mod test {
             fn $name() {
                 assert_eq!(
                     (Parser {
-                        tokens: tokenize($source.to_string()).unwrap()
+                        tokens: lex($source.to_string()).unwrap()
                     })
                     .gen_ast()
                     .unwrap_err(),
@@ -180,9 +229,38 @@ mod test {
         };
     }
 
-    test!(simple, "1" => ast![Expr::num(1)]);
-    test!(bin, "1 + 1" => ast![Expr::num(2)]);
+    fn iden(name: &str) -> Expr {
+        Expr::Iden(name.to_string())
+    }
 
-    test!(multiline, "hello\n12"=>ast![Expr::iden("hello"), Expr::num(12)]);
-    testError!(line_break, "1\n+\n1" => ParserError::UnexpectedToken(Token::Plus, (1, 0)));
+    fn num(value: usize) -> Expr {
+        Expr::Num(value as f32)
+    }
+
+    fn unexpect(token: Token, loc: Loc, len: usize) -> ParseError {
+        ParseError::UnexpectedToken {
+            get: token,
+            loc,
+            len,
+        }
+    }
+
+    fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
+        ParseError::ExpectToken {
+            get,
+            loc,
+            want,
+            len,
+        }
+    }
+
+    test!(simple, "1" => ast![num(1)]);
+    test!(bin, "1 + 1" => ast![num(2)]);
+
+    test!(multiline, "hello\n12"=>ast![iden("hello"), num(12)]);
+    testError!(line_break, "1\n+\n1" => unexpect(Token::Plus, (1, 0), 1));
+
+    test!(var_decl, "var x = 1" => vec![Node::Stmt(Stmt::var_decl("x".to_string(), num(1)))]);
+    testError!(where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));
+    testError!(where_equal, "var e" =>expect(Token::EOL, (0, 5), vec![Token::Equal], 1));
 }

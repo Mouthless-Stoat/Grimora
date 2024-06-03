@@ -26,14 +26,6 @@ impl Display for Expr {
 }
 
 impl Expr {
-    pub fn iden(name: &str) -> Expr {
-        Expr::Iden(name.to_string())
-    }
-
-    pub fn num(value: usize) -> Expr {
-        Expr::Num(value as f32)
-    }
-
     pub fn bin(left: Expr, op: Token, right: Expr) -> Expr {
         Expr::Bin(Box::new(left), op, Box::new(right))
     }

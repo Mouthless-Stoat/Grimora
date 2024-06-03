@@ -1,0 +1,9 @@
+when this summon:
+    var squirrel = new Squirrel
+
+    squirrel.attack += 2
+    squirrel.health += 2
+
+    draw squirrel
+
+

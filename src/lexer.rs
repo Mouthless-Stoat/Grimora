@@ -8,11 +8,16 @@ pub type TokenLoc = (Token, (usize, usize));
 pub enum Token {
     Num(f32),
     Iden(String),
+
     Plus,
     Minus,
     Star,
     Slash,
+    Equal,
+
     Arrow,
+
+    Var,
 
     When,
     Attack,
@@ -28,27 +33,37 @@ pub enum Token {
 // impl Display for to string conversion
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Token::Plus => write!(f, "+"),
-            Token::Minus => write!(f, "-"),
-            Token::Star => write!(f, "*"),
-            Token::Slash => write!(f, "/"),
-            _ => write!(f, "idk"),
-        }
+        write!(
+            f,
+            "{}",
+            match self {
+                Token::Num(num) => return write!(f, "{}", num.to_string()),
+                Token::Iden(iden) => return write!(f, "{}", iden),
+                Token::Plus => "+",
+                Token::Minus => "-",
+                Token::Star => "*",
+                Token::Slash => "/",
+                Token::Arrow => "=>",
+                // auto gen token name, put in uppercase cus they are easier to see
+                _ => return write!(f, "{}", format!("{:?}", self).to_uppercase()),
+            }
+        )
     }
 }
 
 impl Token {
-    #[warn(dead_code)]
-    pub fn iden(name: &str) -> Token {
-        Token::Iden(name.to_string())
-    }
-
-    #[warn(dead_code)]
-    pub fn num(value: usize) -> Token {
-        Token::Num(value as f32)
+    pub fn get_len(&self) -> usize {
+        match self {
+            Token::Num(num) => num.to_string().len(),
+            Token::Iden(iden) => iden.len(),
+            Token::Plus | Token::Minus | Token::Star | Token::Slash | Token::Equal => 1,
+            Token::Arrow => 2,
+            Token::EOL => 1,
+            _ => format!("{:?}", self).len(),
+        }
     }
 }
+
 macro_rules! multi_token {
     ($src:ident, $tokens:ident, $loc:ident, $($multi:literal => $tk:expr),*) => {
         {
@@ -59,7 +74,7 @@ macro_rules! multi_token {
                     if t.len() >= len && t[..len].iter().map(|(_, c)| c).collect::<String>() == $multi
                     {
                         $tokens.push(($tk, $loc));
-                        $tokens.drain(..len);
+                        $src.drain(..len);
                         continue;
                     }
                 }
@@ -67,7 +82,15 @@ macro_rules! multi_token {
         }
     };
 }
-pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, (char, (usize, usize))> {
+
+pub type Loc = (usize, usize);
+pub type LexError = (char, Loc);
+
+pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
+    if source.len() <= 0 {
+        return Ok(VecDeque::new());
+    }
+
     let mut tokens = Vec::<TokenLoc>::new();
 
     for (num, line) in source.lines().enumerate() {
@@ -98,6 +121,7 @@ pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, (char, (usize, usi
                     '-' => Token::Minus,
                     '*' => Token::Star,
                     '/' => Token::Slash,
+                    '=' => Token::Equal,
                     _ => break 'o None,
                 })
             } {
@@ -131,6 +155,7 @@ pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, (char, (usize, usi
             match is_alpha {
                 true => tokens.push((
                     match acc.as_str() {
+                        "var" => Token::Var,
                         "when" => Token::When,
                         "attack" => Token::Attack,
                         "summon" => Token::Summon,
@@ -155,21 +180,30 @@ pub fn tokenize(source: String) -> Result<VecDeque<TokenLoc>, (char, (usize, usi
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::{tokenize, Token};
+
+    use crate::lexer::{lex, Token};
+
+    fn num(num: usize) -> Token {
+        Token::Num(num as f32)
+    }
+
+    fn iden(name: &str) -> Token {
+        Token::Iden(name.to_string())
+    }
 
     // macro to help with writing test
     macro_rules! test {
         ($name:ident, $source:literal => [$($tk:expr , $line:literal:$col:literal);*]) => {
             #[test]
             fn $name() {
-                assert_eq!(tokenize($source.to_string()).unwrap(), [$(($tk, ($line, $col)),)* (Token::EOF, (usize::MAX, usize::MAX))])
+                assert_eq!(lex($source.to_string()).unwrap(), [$(($tk, ($line, $col)),)* (Token::EOF, (usize::MAX, usize::MAX))])
             }
         };
     }
 
-    test!(simple, "1 + 1" => [Token::num(1),0:0; Token::Plus,0:2; Token::num(1),0:4; Token::EOL,0:5]);
-    test!(identifier, "thisIsAIdentifier" => [Token::iden("thisIsAIdentifier"),0:0; Token::EOL,0:17]);
+    test!(simple, "1 + 1" => [num(1),0:0; Token::Plus,0:2; num(1),0:4; Token::EOL,0:5]);
+    test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; Token::EOL,0:17]);
     test!(keyword, "when attack" => [Token::When,0:0; Token::Attack,0:5; Token::EOL,0:11]);
 
-    test!(multiline, "hello\n12" => [Token::iden("hello"),0:0; Token::EOL,0:5; Token::num(12),1:0; Token::EOL,1:2]);
+    test!(multiline, "hello\n12" => [iden("hello"),0:0; Token::EOL,0:5; num(12),1:0; Token::EOL,1:2]);
 }

@@ -1,25 +1,24 @@
-mod lexer;
-mod parser;
-mod trans;
+use std::io::Write;
 
-use lexer::tokenize;
-use parser::Parser;
-
-use crate::trans::transpile;
+use lang::transpile;
 
 fn main() {
-    let input = "1*8".to_string();
+    loop {
+        let stdin = std::io::stdin();
+        let mut stdout = std::io::stdout();
 
-    println!("Input:\n{}", input);
+        let mut buf = String::new();
+        print!("> ");
+        stdout.flush().expect("Cannot flush output");
+        stdin.read_line(&mut buf).expect("Cannot get input");
+        buf = buf.trim().to_owned();
 
-    let tokens = tokenize(input);
-    println!("{:?}", tokens);
-    let ast = (Parser {
-        tokens: tokens.unwrap(),
-    })
-    .gen_ast();
-    println!("{:?}", ast)
-    // println!("Transpile:\n{}", transpile(ast))
-
-    // println!("{:?}", tokenize("1 + 1".to_string()).unwrap())
+        println!(
+            "{}",
+            match transpile(buf) {
+                Ok(res) => res,
+                Err(err) => err.to_string(),
+            }
+        )
+    }
 }
