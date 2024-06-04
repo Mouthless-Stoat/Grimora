@@ -51,7 +51,6 @@ impl Parser {
 
         while !self.tokens.is_empty() && !matches!(self.curr(), Token::EOF) {
             ast.push(self.parse_stmt()?);
-            self.expect(vec![Token::EOL])?;
         }
 
         return Ok(ast);
@@ -82,13 +81,23 @@ impl Parser {
         self.tokens.pop_front().unwrap()
     }
 
+    fn parse_block(&mut self) -> Maybe<Stmt> {
+        todo!()
+    }
+
     fn parse_stmt(&mut self) -> Maybe<Node> {
-        Ok('o: {
-            Node::Stmt(match self.curr() {
-                Token::Var => self.parse_var_decl()?,
-                _ => break 'o Node::Expr(self.parse_expr()?),
-            })
-        })
+        // if it is a expression skip EOL check else check them for stmt
+        let stmt = Node::Stmt(match self.curr() {
+            Token::Var => self.parse_var_decl()?,
+            _ => return Ok(Node::Expr(self.parse_expr()?)),
+        });
+
+        // if not eof expect a eol
+        if !matches!(self.curr(), Token::EOF) {
+            self.expect(vec![Token::EOL])?;
+        }
+
+        Ok(stmt)
     }
 
     // STMT PARSE
@@ -168,6 +177,7 @@ impl Parser {
         Ok(match curr.0 {
             Token::Num(it) => Expr::Num(it),
             Token::Iden(it) => Expr::Iden(it),
+            Token::EOL => self.parse_unit()?,
             _ => {
                 return Err(ParseError::UnexpectedToken {
                     len: curr.0.get_len(),
@@ -203,7 +213,7 @@ mod test {
             fn $name() {
                 assert_eq!(
                     (Parser {
-                        tokens: lex($source.to_string()).unwrap()
+                        tokens: lex($source.to_string()).ok().unwrap()
                     })
                     .gen_ast()
                     .unwrap(),
@@ -219,7 +229,7 @@ mod test {
             fn $name() {
                 assert_eq!(
                     (Parser {
-                        tokens: lex($source.to_string()).unwrap()
+                        tokens: lex($source.to_string()).ok().unwrap()
                     })
                     .gen_ast()
                     .unwrap_err(),
@@ -237,12 +247,8 @@ mod test {
         Expr::Num(value as f32)
     }
 
-    fn unexpect(token: Token, loc: Loc, len: usize) -> ParseError {
-        ParseError::UnexpectedToken {
-            get: token,
-            loc,
-            len,
-        }
+    fn unexpect(get: Token, loc: Loc, len: usize) -> ParseError {
+        ParseError::UnexpectedToken { get, loc, len }
     }
 
     fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
@@ -258,9 +264,10 @@ mod test {
     test!(bin, "1 + 1" => ast![num(2)]);
 
     test!(multiline, "hello\n12"=>ast![iden("hello"), num(12)]);
+    test!(multiline_expr, "1+\n1"=>ast![num(2)]);
     testError!(line_break, "1\n+\n1" => unexpect(Token::Plus, (1, 0), 1));
 
     test!(var_decl, "var x = 1" => vec![Node::Stmt(Stmt::var_decl("x".to_string(), num(1)))]);
     testError!(where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));
-    testError!(where_equal, "var e" =>expect(Token::EOL, (0, 5), vec![Token::Equal], 1));
+    testError!(where_equal, "var e" =>expect(Token::EOF, (0, 5), vec![Token::Equal], 1));
 }

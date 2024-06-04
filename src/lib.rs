@@ -6,7 +6,7 @@ use std::fmt::Display;
 
 use lexer::lex;
 
-use self::lexer::LexError;
+use self::lexer::{LexError, Token};
 use self::parser::{ParseError, Parser};
 use self::trans::trans;
 
@@ -40,25 +40,25 @@ pub enum TranspileError {
 impl Display for TranspileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TranspileError::LexError {
-                source,
-                err: (token, loc),
-            } => write!(
-                f,
-                "\x1b[1;31mError\x1b[0m: Unknown Token `{token}` at {line}:{col}\n{snippet}",
-                line = loc.0 + 1,
-                col = loc.1 + 1,
-                snippet = snippet(source, *loc)
-            ),
+            TranspileError::LexError { source, err } => match err {
+                LexError::InvalidToken(token, loc) => write!(
+                    f,
+                    "\x1b[1;31mError\x1b[0m: Unknown Token `{token}` at {line}:{col}\n{snippet}",
+                    line = loc.0 + 1,
+                    col = loc.1 + 1,
+                    snippet = snippet(source, *loc)
+                ),
+                LexError::InconsitentIndent(line) => write!(
+                    f,
+                    "\x1b[1;31mError\x1b[0m: Inconsitent identation on line {line}",
+                    line = line + 1
+                ),
+            },
             TranspileError::ParseError { source, err } => match err {
-                ParseError::UnexpectedToken {
-                    get: token,
-                    loc,
-                    len,
-                } => {
+                ParseError::UnexpectedToken { get, loc, len } => {
                     write!(
                         f,
-                        "\x1b[1;31mError\x1b[0m: Unexpected Token `{token}` at {line}:{col}\n{snippet}",
+                        "\x1b[1;31mError\x1b[0m: Unexpected Token `{get}` at {line}:{col}\n{snippet}",
                         line = loc.0 + 1,
                         col = loc.1 + 1,
                         snippet = long_snippet(source, *loc, *len)
