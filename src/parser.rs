@@ -223,8 +223,8 @@ mod test {
         };
     }
 
-    macro_rules! testError {
-        ($name:ident, $source:literal => $output:expr) => {
+    macro_rules! should_error {
+        ($name:ident, $source:literal => $error:expr) => {
             #[test]
             fn $name() {
                 assert_eq!(
@@ -233,7 +233,7 @@ mod test {
                     })
                     .gen_ast()
                     .unwrap_err(),
-                    $output
+                    $error
                 )
             }
         };
@@ -265,9 +265,9 @@ mod test {
 
     test!(multiline, "hello\n12"=>ast![iden("hello"), num(12)]);
     test!(multiline_expr, "1+\n1"=>ast![num(2)]);
-    testError!(line_break, "1\n+\n1" => unexpect(Token::Plus, (1, 0), 1));
+    should_error!(line_break, "1\n+\n1" => unexpect(Token::Plus, (1, 0), 1));
 
     test!(var_decl, "var x = 1" => vec![Node::Stmt(Stmt::var_decl("x".to_string(), num(1)))]);
-    testError!(where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));
-    testError!(where_equal, "var e" =>expect(Token::EOF, (0, 5), vec![Token::Equal], 1));
+    should_error!(where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));
+    should_error!(where_equal, "var e" => expect(Token::EOF, (0, 5), vec![Token::Equal], 1));
 }

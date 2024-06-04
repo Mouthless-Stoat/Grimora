@@ -95,9 +95,10 @@ macro_rules! multi_token {
 }
 
 pub type Loc = (usize, usize);
+#[derive(Debug, PartialEq)]
 pub enum LexError {
     InvalidToken(char, Loc),
-    InconsitentIndent(usize),
+    InconsitentIndent(usize, usize),
 }
 
 pub type TokenLoc = (Token, (usize, usize));
@@ -135,17 +136,26 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 }
             } else {
                 let mut indent_count = 0;
+                let indent_len = curr_indent.len();
+
+                if indent_len % indent_char.len() != 0 {
+                    return Err(LexError::InconsitentIndent(num, indent_len));
+                }
 
                 while curr_indent.starts_with(&indent_char) {
                     indent_count += 1;
                     curr_indent.drain(..indent_char.len());
                 }
 
+                if !curr_indent.is_empty() {
+                    return Err(LexError::InconsitentIndent(num, indent_len));
+                }
+
                 match indent_count.cmp(indent_stack.last().unwrap()) {
                     std::cmp::Ordering::Less => {
                         indent_stack.pop().unwrap();
                         if indent_count != *indent_stack.last().unwrap() {
-                            return Err(LexError::InconsitentIndent(num));
+                            return Err(LexError::InconsitentIndent(num, indent_len));
                         } else {
                             tokens.push((Token::DED, (num, 0)))
                         }
@@ -154,7 +164,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                     std::cmp::Ordering::Equal => (),
                     std::cmp::Ordering::Greater => {
                         if indent_count != indent_stack.last().unwrap() + 1 {
-                            return Err(LexError::InconsitentIndent(num));
+                            return Err(LexError::InconsitentIndent(num, indent_len));
                         } else {
                             tokens.push((Token::IND, (num, 0)));
                             indent_stack.push(indent_count);
@@ -258,14 +268,14 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
 #[cfg(test)]
 mod test {
 
-    use crate::lexer::{lex, Token};
+    use crate::lexer::{lex, LexError::*, Token::*};
 
-    fn num(num: usize) -> Token {
-        Token::Num(num as f32)
+    fn num(num: usize) -> crate::lexer::Token {
+        Num(num as f32)
     }
 
-    fn iden(name: &str) -> Token {
-        Token::Iden(name.to_string())
+    fn iden(name: &str) -> crate::lexer::Token {
+        Iden(name.to_string())
     }
 
     // macro to help with writing test
@@ -278,54 +288,81 @@ mod test {
         };
     }
 
-    test!(simple, "1 + 1" => [num(1),0:0; Token::Plus,0:2; num(1),0:4; Token::EOF,0:5]);
-    test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; Token::EOF,0:17]);
-    test!(keyword, "when attack" => [Token::When,0:0; Token::Attack,0:5; Token::EOF,0:11]);
+    macro_rules! should_error {
+        ($name:ident, $source:literal => $error:expr) => {
+            #[test]
+            fn $name() {
+                assert_eq!(lex($source.to_string()).unwrap_err(), $error)
+            }
+        };
+    }
 
-    test!(multiline, "hello\n12" => [iden("hello"),0:0; Token::EOL,0:5; num(12),1:0; Token::EOF,1:2]);
+    test!(simple, "1 + 1" => [num(1),0:0; Plus,0:2; num(1),0:4; EOF,0:5]);
+    test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; EOF,0:17]);
+    test!(keyword, "when attack" => [When,0:0; Attack,0:5; EOF,0:11]);
 
-    test!(multi_token, "== >= <= =>" => [Token::Equality,0:0; Token::GreaterEq,0:3; Token::LesserEq,0:6; Token::Arrow,0:9; Token::EOF,0:11]);
+    test!(multiline, "hello\n12" => [iden("hello"),0:0; EOL,0:5; num(12),1:0; EOF,1:2]);
 
-    test!(indent_space, " 1"=>[Token::IND,0:0; num(1),0:1; Token::EOF,0:2]);
-    test!(inden_tab, "\t1"=>[Token::IND,0:0; num(1),0:1; Token::EOF,0:2]);
-    test!(indent_multispace, "   1"=>[Token::IND,0:0; num(1),0:3; Token::EOF,0:4]);
-    test!(inden_multitab, "\t\t\t1"=>[Token::IND,0:0; num(1),0:3; Token::EOF,0:4]);
+    test!(multi_token, "== >= <= =>" => [Equality,0:0; GreaterEq,0:3; LesserEq,0:6; Arrow,0:9; EOF,0:11]);
+
+    test!(indent_space, " 1"=>[IND,0:0; num(1),0:1; EOF,0:2]);
+    test!(inden_tab, "\t1"=>[IND,0:0; num(1),0:1; EOF,0:2]);
+    test!(indent_multispace, "   1"=>[IND,0:0; num(1),0:3; EOF,0:4]);
+    test!(inden_multitab, "\t\t\t1"=>[IND,0:0; num(1),0:3; EOF,0:4]);
 
     test!(indent_multiline_space, "1\n 1\n  1"=>[
-        num(1),0:0; Token::EOL,0:1;
-        Token::IND,1:0; num(1),1:1; Token::EOL,1:2;
-        Token::IND,2:0; num(1),2:2; Token::EOF,2:3
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:1; EOL,1:2;
+        IND,2:0; num(1),2:2; EOF,2:3
     ]);
     test!(indent_multiline_tab, "1\n\t1\n\t\t1"=>[
-        num(1),0:0; Token::EOL,0:1;
-        Token::IND,1:0; num(1),1:1; Token::EOL,1:2;
-        Token::IND,2:0; num(1),2:2; Token::EOF,2:3
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:1; EOL,1:2;
+        IND,2:0; num(1),2:2; EOF,2:3
     ]);
 
     test!(indent_multiline_multispace, "1\n  1\n    1"=>[
-        num(1),0:0; Token::EOL,0:1;
-        Token::IND,1:0; num(1),1:2; Token::EOL,1:3;
-        Token::IND,2:0; num(1),2:4; Token::EOF,2:5
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:2; EOL,1:3;
+        IND,2:0; num(1),2:4; EOF,2:5
     ]);
     test!(indent_multiline_multitab, "1\n\t\t1\n\t\t\t\t1"=>[
-        num(1),0:0; Token::EOL,0:1;
-        Token::IND,1:0; num(1),1:2; Token::EOL,1:3;
-        Token::IND,2:0; num(1),2:4; Token::EOF,2:5
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:2; EOL,1:3;
+        IND,2:0; num(1),2:4; EOF,2:5
     ]);
 
-    test!(indent_cascade, "1\n 1\n  1\n 1\n1"=>[
-                        num(1),0:0; Token::EOL,0:1;
-        Token::IND,1:0; num(1),1:1; Token::EOL,1:2;
-        Token::IND,2:0; num(1),2:2; Token::EOL,2:3;
-        Token::DED,3:0; num(1),3:1; Token::EOL,3:2;
-        Token::DED,4:0; num(1),4:0; Token::EOF,4:1
+    test!(indent_cascade_space, "1\n 1\n  1\n 1\n1"=>[
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:1; EOL,1:2;
+        IND,2:0; num(1),2:2; EOL,2:3;
+        DED,3:0; num(1),3:1; EOL,3:2;
+        DED,4:0; num(1),4:0; EOF,4:1
     ]);
 
     test!(indent_cascade_multispace, "1\n  1\n    1\n  1\n1"=>[
-                        num(1),0:0; Token::EOL,0:1;
-        Token::IND,1:0; num(1),1:2; Token::EOL,1:3;
-        Token::IND,2:0; num(1),2:4; Token::EOL,2:5;
-        Token::DED,3:0; num(1),3:2; Token::EOL,3:3;
-        Token::DED,4:0; num(1),4:0; Token::EOF,4:1
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:2; EOL,1:3;
+        IND,2:0; num(1),2:4; EOL,2:5;
+        DED,3:0; num(1),3:2; EOL,3:3;
+        DED,4:0; num(1),4:0; EOF,4:1
     ]);
+
+    test!(indent_cascade_tab, "1\n 1\n  1\n 1\n1"=>[
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:1; EOL,1:2;
+        IND,2:0; num(1),2:2; EOL,2:3;
+        DED,3:0; num(1),3:1; EOL,3:2;
+        DED,4:0; num(1),4:0; EOF,4:1
+    ]);
+
+    test!(indent_cascade_multitab, "1\n  1\n    1\n  1\n1"=>[
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:2; EOL,1:3;
+        IND,2:0; num(1),2:4; EOL,2:5;
+        DED,3:0; num(1),3:2; EOL,3:3;
+        DED,4:0; num(1),4:0; EOF,4:1
+    ]);
+    should_error!(indent_wrong_type, "  1\n\t1" => InconsitentIndent(1, 1));
+    should_error!(indent_inconsitent, "  1\n   1" => InconsitentIndent(1, 3));
 }

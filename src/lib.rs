@@ -6,7 +6,7 @@ use std::fmt::Display;
 
 use lexer::lex;
 
-use self::lexer::{LexError, Token};
+use self::lexer::LexError;
 use self::parser::{ParseError, Parser};
 use self::trans::trans;
 
@@ -48,10 +48,11 @@ impl Display for TranspileError {
                     col = loc.1 + 1,
                     snippet = snippet(source, *loc)
                 ),
-                LexError::InconsitentIndent(line) => write!(
+                LexError::InconsitentIndent(line, len) => write!(
                     f,
-                    "\x1b[1;31mError\x1b[0m: Inconsitent identation on line {line}",
-                    line = line + 1
+                    "\x1b[1;31mError\x1b[0m: Inconsitent identation on line {line}\n{snippet}",
+                    line = line + 1,
+                    snippet = long_snippet(source, (*line, 0), *len)
                 ),
             },
             TranspileError::ParseError { source, err } => match err {
