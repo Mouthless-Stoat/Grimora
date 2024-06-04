@@ -1,4 +1,4 @@
-// use std::io::Write;
+use std::io::Write;
 
 use lang::transpile;
 
@@ -13,7 +13,7 @@ fn main() {
         // stdin.read_line(&mut buf).expect("Cannot get input");
         // buf = buf.trim().to_owned();
 
-        let buf = "1\n 1\n  1".to_string();
+        let buf = "1\n  1\n      1".to_string();
 
         println!(
             "{}",

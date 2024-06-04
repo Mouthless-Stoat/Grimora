@@ -104,6 +104,7 @@ pub enum LexError {
 pub type TokenLoc = (Token, (usize, usize));
 
 pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
+    let source = source.trim_end();
     if source.len() <= 0 {
         return Ok(VecDeque::new());
     }
@@ -123,7 +124,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             let mut curr_indent = String::new();
             if c.is_whitespace() {
                 curr_indent.push(src.pop_front().unwrap().1);
-                while src[0].1 == c && src.len() > 0 {
+                while src.len() > 0 && src[0].1 == c {
                     curr_indent.push(src.pop_front().unwrap().1)
                 }
             }
@@ -267,7 +268,6 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
 
 #[cfg(test)]
 mod test {
-
     use crate::lexer::{lex, LexError::*, Token::*};
 
     fn num(num: usize) -> crate::lexer::Token {
@@ -300,6 +300,7 @@ mod test {
     test!(simple, "1 + 1" => [num(1),0:0; Plus,0:2; num(1),0:4; EOF,0:5]);
     test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; EOF,0:17]);
     test!(keyword, "when attack" => [When,0:0; Attack,0:5; EOF,0:11]);
+    test!(trailing_space, "1   " => [num(1),0:0; EOF,0:1]);
 
     test!(multiline, "hello\n12" => [iden("hello"),0:0; EOL,0:5; num(12),1:0; EOF,1:2]);
 
@@ -365,4 +366,7 @@ mod test {
     ]);
     should_error!(indent_wrong_type, "  1\n\t1" => InconsitentIndent(1, 1));
     should_error!(indent_inconsitent, "  1\n   1" => InconsitentIndent(1, 3));
+
+    test!(space, "   " => []);
+    test!(empty, "" => []);
 }

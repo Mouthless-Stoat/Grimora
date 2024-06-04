@@ -11,13 +11,7 @@ use self::parser::{ParseError, Parser};
 use self::trans::trans;
 
 fn snippet(source: &String, loc: (usize, usize)) -> String {
-    format!(
-        "{line} | {content}\n{loc}",
-        line = loc.0 + 1,
-        content = source.lines().collect::<Vec<&str>>()[loc.0],
-        loc = " ".repeat((loc.0 + 1).checked_ilog10().unwrap_or(0) as usize + loc.1 + 4)
-            + "\x1b[1;31m─\x1b[0m"
-    )
+    long_snippet(source, loc, 1)
 }
 
 fn long_snippet(source: &String, loc: (usize, usize), len: usize) -> String {
