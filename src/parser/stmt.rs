@@ -16,7 +16,7 @@ impl Stmt {
 impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Stmt::VarDecl(name, val) => write!(f, "var {} = {}", name, val),
+            Stmt::VarDecl(name, val) => write!(f, "var {}_0 = {}", name, val),
         }
     }
 }

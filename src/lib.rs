@@ -45,11 +45,10 @@ impl Display for TranspileError {
                 err: (token, loc),
             } => write!(
                 f,
-                "\x1b[1;31mError\x1b[0m: Unknown Token `{}` at {}:{}\n{}",
-                token,
-                loc.0 + 1,
-                loc.1 + 1,
-                snippet(source, *loc)
+                "\x1b[1;31mError\x1b[0m: Unknown Token `{token}` at {line}:{col}\n{snippet}",
+                line = loc.0 + 1,
+                col = loc.1 + 1,
+                snippet = snippet(source, *loc)
             ),
             TranspileError::ParseError { source, err } => match err {
                 ParseError::UnexpectedToken {
@@ -59,11 +58,10 @@ impl Display for TranspileError {
                 } => {
                     write!(
                         f,
-                        "\x1b[1;31mError\x1b[0m: Unexpected Token `{}` at {}:{}\n{}",
-                        token,
-                        loc.0 + 1,
-                        loc.1 + 1,
-                        long_snippet(source, *loc, *len)
+                        "\x1b[1;31mError\x1b[0m: Unexpected Token `{token}` at {line}:{col}\n{snippet}",
+                        line = loc.0 + 1,
+                        col = loc.1 + 1,
+                        snippet = long_snippet(source, *loc, *len)
                     )
                 }
                 ParseError::ExpectToken {
@@ -73,7 +71,7 @@ impl Display for TranspileError {
                     len,
                 } => write!(
                     f,
-                    "\x1b[1;31mError\x1b[0m: Expect {}, found `{}` at {}:{}\n{}",
+                    "\x1b[1;31mError\x1b[0m: Expect {}, found `{get}` at {}:{}\n{}",
                     if want.len() == 1 {
                         format!("`{}`", want[0].to_string())
                     } else {
@@ -85,7 +83,6 @@ impl Display for TranspileError {
                                 .join(",")
                         )
                     },
-                    get,
                     loc.0 + 1,
                     loc.1 + 1,
                     long_snippet(source, *loc, *len)

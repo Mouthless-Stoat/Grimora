@@ -6,19 +6,27 @@ pub type TokenLoc = (Token, (usize, usize));
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
+    // literal
     Num(f32),
     Iden(String),
 
+    // single char
     Plus,
     Minus,
     Star,
     Slash,
     Equal,
 
+    // multi char
     Arrow,
+    Equality,
+    Greater,
+    Lesser,
+    GreaterEq,
+    LesserEq,
 
+    // keyword
     Var,
-
     When,
     Attack,
     Summon,
@@ -43,9 +51,16 @@ impl Display for Token {
                 Token::Minus => "-",
                 Token::Star => "*",
                 Token::Slash => "/",
+                Token::Equal => "=",
                 Token::Arrow => "=>",
-                // auto gen token name, put in uppercase cus they are easier to see
-                _ => return write!(f, "{}", format!("{:?}", self).to_uppercase()),
+
+                Token::Equality => "==",
+                Token::Greater => ">",
+                Token::Lesser => "<",
+                Token::GreaterEq => ">=",
+                Token::LesserEq => "<=",
+
+                _ => return write!(f, "{:?}", self),
             }
         )
     }
@@ -54,12 +69,8 @@ impl Display for Token {
 impl Token {
     pub fn get_len(&self) -> usize {
         match self {
-            Token::Num(num) => num.to_string().len(),
-            Token::Iden(iden) => iden.len(),
-            Token::Plus | Token::Minus | Token::Star | Token::Slash | Token::Equal => 1,
-            Token::Arrow => 2,
             Token::EOL => 1,
-            _ => format!("{:?}", self).len(),
+            _ => format!("{}", self).len(),
         }
     }
 }
@@ -110,6 +121,14 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             // check for longer token
             multi_token!(
                 src, tokens, loc,
+
+
+                "==" =>Token::Equality,
+                ">=" => Token::GreaterEq,
+                "<=" => Token::LesserEq,
+                ">" => Token::Greater,
+                "<" => Token::Lesser,
+
                 "=>" => Token::Arrow
             );
 
@@ -206,4 +225,6 @@ mod test {
     test!(keyword, "when attack" => [Token::When,0:0; Token::Attack,0:5; Token::EOL,0:11]);
 
     test!(multiline, "hello\n12" => [iden("hello"),0:0; Token::EOL,0:5; num(12),1:0; Token::EOL,1:2]);
+
+    test!(multi_token, "== >= <= =>" => [Token::Equality,0:0; Token::GreaterEq,0:3; Token::LesserEq,0:6; Token::Arrow,0:9]);
 }
