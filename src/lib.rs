@@ -48,6 +48,13 @@ impl Display for TranspileError {
                     line = line + 1,
                     snippet = long_snippet(source, (*line, 0), *len)
                 ),
+                LexError::FirstLineIndent => {
+                    write!(
+                        f,
+                        "\x1b[1;31mError\x1b[0m: Indent on the first line\n{snippet}",
+                        snippet = snippet(source, (0, 0))
+                    )
+                }
             },
             TranspileError::ParseError { source, err } => match err {
                 ParseError::UnexpectedToken { get, loc, len } => {

@@ -97,6 +97,7 @@ macro_rules! multi_token {
 pub type Loc = (usize, usize);
 #[derive(Debug, PartialEq)]
 pub enum LexError {
+    FirstLineIndent,
     InvalidToken(char, Loc),
     InconsitentIndent(usize, usize),
 }
@@ -130,6 +131,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             }
             // first time detection set the indent for the rest of the file
             if indent_char.is_empty() {
+                // idk how to fix this imma be honest
                 if !curr_indent.is_empty() {
                     indent_char = curr_indent.clone();
                     indent_stack.push(1); // assume that whatever the first indent is, is 1 level in
@@ -139,25 +141,25 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 let mut indent_count = 0;
                 let indent_len = curr_indent.len();
 
+                // fast check for error
                 if indent_len % indent_char.len() != 0 {
                     return Err(LexError::InconsitentIndent(num, indent_len));
                 }
 
+                // drain them to count the token
                 while curr_indent.starts_with(&indent_char) {
                     indent_count += 1;
                     curr_indent.drain(..indent_char.len());
                 }
 
+                // extra check if it not the same type
                 if !curr_indent.is_empty() {
                     return Err(LexError::InconsitentIndent(num, indent_len));
                 }
 
                 match indent_count.cmp(indent_stack.last().unwrap()) {
                     std::cmp::Ordering::Less => {
-                        indent_stack.pop().unwrap();
-                        if indent_count != *indent_stack.last().unwrap() {
-                            return Err(LexError::InconsitentIndent(num, indent_len));
-                        } else {
+                        for _ in 0..(indent_stack.pop().unwrap() - indent_count) {
                             tokens.push((Token::DED, (num, 0)))
                         }
                     }
@@ -263,6 +265,10 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
     let t = tokens.pop().unwrap().1;
     tokens.push((Token::EOF, t));
 
+    if matches!(tokens[0].0, Token::IND) {
+        return Err(LexError::FirstLineIndent);
+    }
+
     return Ok(VecDeque::from(tokens));
 }
 
@@ -306,10 +312,10 @@ mod test {
 
     test!(multi_token, "== >= <= =>" => [Equality,0:0; GreaterEq,0:3; LesserEq,0:6; Arrow,0:9; EOF,0:11]);
 
-    test!(indent_space, " 1"=>[IND,0:0; num(1),0:1; EOF,0:2]);
-    test!(inden_tab, "\t1"=>[IND,0:0; num(1),0:1; EOF,0:2]);
-    test!(indent_multispace, "   1"=>[IND,0:0; num(1),0:3; EOF,0:4]);
-    test!(inden_multitab, "\t\t\t1"=>[IND,0:0; num(1),0:3; EOF,0:4]);
+    test!(indent_space, "1\n 1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:1; EOF,1:2]);
+    test!(inden_tab, "1\n\t1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:1; EOF,1:2]);
+    test!(indent_multispace, "1\n   1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:3; EOF,1:4]);
+    test!(inden_multitab, "1\n\t\t\t1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:3; EOF,1:4]);
 
     test!(indent_multiline_space, "1\n 1\n  1"=>[
                  num(1),0:0; EOL,0:1;
@@ -321,7 +327,6 @@ mod test {
         IND,1:0; num(1),1:1; EOL,1:2;
         IND,2:0; num(1),2:2; EOF,2:3
     ]);
-
     test!(indent_multiline_multispace, "1\n  1\n    1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:2; EOL,1:3;
@@ -340,7 +345,6 @@ mod test {
         DED,3:0; num(1),3:1; EOL,3:2;
         DED,4:0; num(1),4:0; EOF,4:1
     ]);
-
     test!(indent_cascade_multispace, "1\n  1\n    1\n  1\n1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:2; EOL,1:3;
@@ -348,7 +352,6 @@ mod test {
         DED,3:0; num(1),3:2; EOL,3:3;
         DED,4:0; num(1),4:0; EOF,4:1
     ]);
-
     test!(indent_cascade_tab, "1\n 1\n  1\n 1\n1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:1; EOL,1:2;
@@ -356,7 +359,6 @@ mod test {
         DED,3:0; num(1),3:1; EOL,3:2;
         DED,4:0; num(1),4:0; EOF,4:1
     ]);
-
     test!(indent_cascade_multitab, "1\n  1\n    1\n  1\n1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:2; EOL,1:3;
@@ -364,6 +366,20 @@ mod test {
         DED,3:0; num(1),3:2; EOL,3:3;
         DED,4:0; num(1),4:0; EOF,4:1
     ]);
+
+    test!(indent_space_jump, "1\n 1\n  1\n1" => [
+                          num(1),0:0; EOL,0:1;
+        IND,1:0;          num(1),1:1; EOL,1:2;
+        IND,2:0;          num(1),2:2; EOL,2:3;
+        DED,3:0; DED,3:0; num(1),3:0; EOF,3:1
+    ]);
+    test!(indent_multispace_jump, "1\n  1\n    1\n1" => [
+                          num(1),0:0; EOL,0:1;
+        IND,1:0;          num(1),1:2; EOL,1:3;
+        IND,2:0;          num(1),2:4; EOL,2:5;
+        DED,3:0; DED,3:0; num(1),3:0; EOF,3:1
+    ]);
+
     should_error!(indent_wrong_type, "  1\n\t1" => InconsitentIndent(1, 1));
     should_error!(indent_inconsitent, "  1\n   1" => InconsitentIndent(1, 3));
 
