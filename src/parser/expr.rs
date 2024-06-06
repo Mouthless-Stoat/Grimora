@@ -7,20 +7,16 @@ pub enum Expr {
     Num(f32),
     Iden(String),
     Bin(Box<Expr>, Token, Box<Expr>),
+    Bool(bool),
 }
 
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Num(int) => write!(f, "{}", int),
-            Expr::Iden(iden) => write!(f, "{}", iden),
-            Expr::Bin(left, op, right) => write!(
-                f,
-                "{} {} {}",
-                left.to_string(),
-                op.to_string(),
-                right.to_string()
-            ),
+            Expr::Num(int) => write!(f, "{int}"),
+            Expr::Iden(iden) => write!(f, "{iden}"),
+            Expr::Bin(left, op, right) => write!(f, "{left} {op} {right}",),
+            Expr::Bool(bool) => write!(f, "{bool}"),
         }
     }
 }

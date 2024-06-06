@@ -18,8 +18,8 @@ pub enum Node {
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Node::Expr(expr) => write!(f, "{}", expr),
-            Node::Stmt(stmt) => write!(f, "{}", stmt),
+            Node::Expr(expr) => write!(f, "{expr}"),
+            Node::Stmt(stmt) => write!(f, "{stmt}"),
         }
     }
 }
@@ -49,14 +49,18 @@ impl Parser {
     pub fn gen_ast(&mut self) -> Maybe<Vec<Node>> {
         let mut ast: Vec<Node> = Vec::new();
 
-        while !self.tokens.is_empty() && !matches!(self.curr(), Token::EOF) {
+        while !self.tokens.is_empty() && self.not_eof() {
             ast.push(self.parse_stmt()?);
         }
 
         return Ok(ast);
     }
 
-    fn expect(&mut self, what: Vec<Token>) -> Maybe<Token> {
+    fn not_eof(&self) -> bool {
+        !matches!(self.curr(), Token::EOF)
+    }
+
+    fn expect(&mut self, what: &[Token]) -> Maybe<Token> {
         let next = self.next_loc();
         match what.iter().any(|tk| next.0 == *tk) {
             true => Ok(next.0),
@@ -64,7 +68,7 @@ impl Parser {
                 len: next.0.get_len(),
                 get: next.0,
                 loc: (next.1 .0, next.1 .1),
-                want: what,
+                want: what.to_vec(),
             }),
         }
     }
@@ -82,19 +86,31 @@ impl Parser {
     }
 
     fn parse_block(&mut self) -> Maybe<Stmt> {
-        todo!()
+        self.expect(&[Token::Colon])?;
+        if matches!(self.curr(), Token::EOL) {
+            self.next();
+            let mut body = Vec::new();
+            self.expect(&[Token::IND])?;
+            while self.not_eof() && !matches!(self.curr(), Token::DED) {
+                body.push(self.parse_stmt()?);
+            }
+            Ok(Stmt::Block(body))
+        } else {
+            Ok(Stmt::Block(vec![self.parse_stmt()?]))
+        }
     }
 
     fn parse_stmt(&mut self) -> Maybe<Node> {
         // if it is a expression skip EOL check else check them for stmt
         let stmt = Node::Stmt(match self.curr() {
             Token::Var => self.parse_var_decl()?,
+            Token::If => self.parse_if()?,
             _ => return Ok(Node::Expr(self.parse_expr()?)),
         });
 
         // if not eof expect a eol
         if !matches!(self.curr(), Token::EOF) {
-            self.expect(vec![Token::EOL])?;
+            self.expect(&[Token::EOL])?;
         }
 
         Ok(stmt)
@@ -106,9 +122,9 @@ impl Parser {
         let name = self.next_loc();
         if matches!(name.0, Token::Iden(_)) {
             let name = name.0;
-            self.expect(vec![Token::Equal])?;
+            self.expect(&[Token::Equal])?;
             let val = self.parse_expr()?;
-            Ok(Stmt::var_decl(
+            Ok(Stmt::VarDecl(
                 match name {
                     Token::Iden(n) => n,
                     _ => unreachable!(),
@@ -123,6 +139,15 @@ impl Parser {
                 want: vec![Token::Iden("identifier".to_string())],
             })
         }
+    }
+
+    fn parse_if(&mut self) -> Maybe<Stmt> {
+        self.next();
+
+        let cond = self.parse_expr()?;
+        let body = self.parse_block()?;
+
+        Ok(Stmt::if_stmt(cond, body))
     }
 
     // EXPR PARSE
@@ -177,6 +202,8 @@ impl Parser {
         Ok(match curr.0 {
             Token::Num(it) => Expr::Num(it),
             Token::Iden(it) => Expr::Iden(it),
+            Token::True => Expr::Bool(true),
+            Token::False => Expr::Bool(false),
             Token::EOL => self.parse_unit()?,
             _ => {
                 return Err(ParseError::UnexpectedToken {
@@ -192,15 +219,19 @@ impl Parser {
 #[cfg(test)]
 mod test {
     use crate::lexer::{lex, Loc, Token};
-    use crate::parser::{Expr, Node, ParseError, Parser, Stmt};
+    use crate::parser::{
+        Expr,
+        Node::{Expr as ExprN, Stmt as StmtN},
+        ParseError, Parser, Stmt,
+    };
 
     // Helper to make typing ast less annoying
-    macro_rules! ast {
+    macro_rules! expr_ast {
         ($($node:expr),*) => {
             {
                 let mut t = Vec::new();
                 $(
-                    t.push(Node::Expr($node));
+                    t.push(ExprN($node));
                 )*
                 t
             }
@@ -212,9 +243,9 @@ mod test {
             #[test]
             fn $name() {
                 assert_eq!(
-                    (Parser {
+                    Parser {
                         tokens: lex($source.to_string()).ok().unwrap()
-                    })
+                    }
                     .gen_ast()
                     .unwrap(),
                     $output
@@ -228,9 +259,9 @@ mod test {
             #[test]
             fn $name() {
                 assert_eq!(
-                    (Parser {
+                    Parser {
                         tokens: lex($source.to_string()).ok().unwrap()
-                    })
+                    }
                     .gen_ast()
                     .unwrap_err(),
                     $error
@@ -260,14 +291,18 @@ mod test {
         }
     }
 
-    test!(simple, "1" => ast![num(1)]);
-    test!(bin, "1 + 1" => ast![num(2)]);
+    test!(simple, "1" => expr_ast![num(1)]);
 
-    test!(multiline, "hello\n12"=>ast![iden("hello"), num(12)]);
-    test!(multiline_expr, "1+\n1"=>ast![num(2)]);
+    test!(bin, "1 + 1" => expr_ast![num(2)]);
+    test!(bin_oop, "1 + 1 * 9" => expr_ast![num(10)]);
+
+    test!(multiline, "hello\n12"=>expr_ast![iden("hello"), num(12)]);
+    test!(multiline_expr, "1+\n1"=>expr_ast![num(2)]);
     should_error!(line_break, "1\n+\n1" => unexpect(Token::Plus, (1, 0), 1));
 
-    test!(var_decl, "var x = 1" => vec![Node::Stmt(Stmt::var_decl("x".to_string(), num(1)))]);
-    should_error!(where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));
-    should_error!(where_equal, "var e" => expect(Token::EOF, (0, 5), vec![Token::Equal], 1));
+    test!(var, "var x = 1" => vec![StmtN(Stmt::VarDecl("x".to_string(), num(1)))]);
+    should_error!(var_where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));
+    should_error!(var_where_equal, "var e" => expect(Token::EOF, (0, 5), vec![Token::Equal], 1));
+
+    test!(if_stmt, "if 1 + 1:\n\thelo" => [StmtN(Stmt::if_stmt(num(2), Stmt::Block(vec![ExprN(iden("helo"))])))]);
 }

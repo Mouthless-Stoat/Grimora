@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
 use std::{char, usize};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     // literal
     Num(f32),
@@ -14,6 +14,7 @@ pub enum Token {
     Star,
     Slash,
     Equal,
+    Colon,
 
     // multi char
     Arrow,
@@ -25,12 +26,16 @@ pub enum Token {
 
     // keyword
     Var,
+    If,
     When,
     Attack,
     Summon,
     Hit,
     Death,
     Move,
+
+    True,
+    False,
 
     EOL,
     EOF,
@@ -45,13 +50,14 @@ impl Display for Token {
             f,
             "{}",
             match self {
-                Token::Num(num) => return write!(f, "{}", num.to_string()),
-                Token::Iden(iden) => return write!(f, "{}", iden),
+                Token::Num(num) => return write!(f, "{num}"),
+                Token::Iden(iden) => return write!(f, "{iden}"),
                 Token::Plus => "+",
                 Token::Minus => "-",
                 Token::Star => "*",
                 Token::Slash => "/",
                 Token::Equal => "=",
+                Token::Colon => ":",
                 Token::Arrow => "=>",
 
                 Token::Equality => "==",
@@ -70,7 +76,7 @@ impl Token {
     pub fn get_len(&self) -> usize {
         match self {
             Token::EOL | Token::EOF => 1,
-            _ => format!("{}", self).len(),
+            _ => format!("{self}").len(),
         }
     }
 }
@@ -211,6 +217,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                     '*' => Token::Star,
                     '/' => Token::Slash,
                     '=' => Token::Equal,
+                    ':' => Token::Colon,
                     _ => break 'o None,
                 })
             } {
@@ -245,12 +252,17 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 true => tokens.push((
                     match acc.as_str() {
                         "var" => Token::Var,
+                        "if" => Token::If,
+
                         "when" => Token::When,
                         "attack" => Token::Attack,
                         "summon" => Token::Summon,
                         "hit" => Token::Hit,
                         "death" => Token::Death,
                         "move" => Token::Move,
+
+                        "true" => Token::True,
+                        "false" => Token::False,
                         _ => Token::Iden(acc),
                     },
                     loc,

@@ -80,7 +80,7 @@ impl Display for TranspileError {
                         format!(
                             "one of {}",
                             want.iter()
-                                .map(|tk| format!("`{}`", tk.to_string()))
+                                .map(|tk| format!("`{tk}`"))
                                 .collect::<Vec<String>>()
                                 .join(",")
                         )
