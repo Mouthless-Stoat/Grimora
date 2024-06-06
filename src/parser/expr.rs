@@ -10,6 +10,12 @@ pub enum Expr {
     Bool(bool),
 }
 
+impl Expr {
+    pub fn bin(left: Expr, op: Token, right: Expr) -> Self {
+        Expr::Bin(Box::new(left), op, Box::new(right))
+    }
+}
+
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -18,11 +24,5 @@ impl Display for Expr {
             Expr::Bin(left, op, right) => write!(f, "{left} {op} {right}",),
             Expr::Bool(bool) => write!(f, "{bool}"),
         }
-    }
-}
-
-impl Expr {
-    pub fn bin(left: Expr, op: Token, right: Expr) -> Expr {
-        Expr::Bin(Box::new(left), op, Box::new(right))
     }
 }

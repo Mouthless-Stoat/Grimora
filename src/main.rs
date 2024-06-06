@@ -1,8 +1,7 @@
-use std::io::Write;
-
 use lang::transpile;
 
 fn main() {
+    println!("extends SigilEffect\nfunc handle_event(event, params):\n\tif true:\n\t\tif true:\n\t\thello");
     loop {
         // let stdin = std::io::stdin();
         // let mut stdout = std::io::stdout();

@@ -5,7 +5,7 @@ pub const TABCHAR: &str = "\t";
 pub fn trans(program: Vec<Node>) -> String {
     let mut out = String::from("extends SigilEffect\nfunc handle_event(event, params):\n");
     if program.len() <= 0 {
-        return out + "\tpass";
+        return out + TABCHAR + "pass";
     }
     for node in program {
         out.push_str(
@@ -16,7 +16,7 @@ pub fn trans(program: Vec<Node>) -> String {
                 .collect::<String>(),
         )
     }
-    return out;
+    return out.trim().to_string();
 }
 
 #[cfg(test)]
@@ -44,6 +44,7 @@ mod test {
                             .map(|l| format!("{TABCHAR}{l}\n"))
                             .collect::<String>()
                     )
+                    .trim()
                 )
             }
         };
@@ -55,5 +56,9 @@ mod test {
     test!(var, "var a = 10" => "var a_0 = 10");
 
     test!(multiline, "1\n2" => "1\n2");
+
     test!(if_stmt, "if 1 + 1:\n\thello" => "if 2:\n\thello");
+    test!(if_stmt_nest, "if true: if true: hello" => "if true:\n\tif true:\n\t\thello");
+
+    test!(empty, "" => "pass");
 }

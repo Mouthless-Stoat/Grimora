@@ -292,6 +292,7 @@ mod test {
     }
 
     test!(simple, "1" => expr_ast![num(1)]);
+    test!(empty, "" => []);
 
     test!(bin, "1 + 1" => expr_ast![num(2)]);
     test!(bin_oop, "1 + 1 * 9" => expr_ast![num(10)]);
@@ -305,4 +306,21 @@ mod test {
     should_error!(var_where_equal, "var e" => expect(Token::EOF, (0, 5), vec![Token::Equal], 1));
 
     test!(if_stmt, "if 1 + 1:\n\thelo" => [StmtN(Stmt::if_stmt(num(2), Stmt::Block(vec![ExprN(iden("helo"))])))]);
+    test!(if_stmt_nest, "if true: if true: hello" => [
+        StmtN(
+            Stmt::if_stmt(
+                Expr::Bool(true),
+                Stmt::Block(
+                    vec![
+                        StmtN(
+                            Stmt::if_stmt(
+                                Expr::Bool(true),
+                                Stmt::Block(vec![ExprN(iden("hello"))])
+                            )
+                        )
+                    ]
+                )
+            )
+        )
+    ]);
 }

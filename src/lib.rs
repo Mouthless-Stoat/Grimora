@@ -8,7 +8,7 @@ use lexer::lex;
 
 use self::lexer::LexError;
 use self::parser::{ParseError, Parser};
-use self::trans::trans;
+use self::trans::{trans, TABCHAR};
 
 fn snippet(source: &String, loc: (usize, usize)) -> String {
     long_snippet(source, loc, 1)
