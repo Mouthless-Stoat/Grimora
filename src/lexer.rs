@@ -106,6 +106,7 @@ pub enum LexError {
     FirstLineIndent,
     InvalidToken(char, Loc),
     InconsitentIndent(usize, usize),
+    CharAfterContinuation(usize),
 }
 
 pub type TokenLoc = (Token, (usize, usize));
@@ -121,7 +122,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
     let mut indent_stack = vec![0];
     let mut indent_char = String::new();
 
-    for (num, line) in source.lines().enumerate() {
+    'lines: for (num, line) in source.lines().enumerate() {
         let mut src: VecDeque<(usize, char)> = line.char_indices().collect();
 
         // detech indent before lexing line
@@ -165,19 +166,21 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
 
                 match indent_count.cmp(indent_stack.last().unwrap()) {
                     std::cmp::Ordering::Less => {
+                        // remove the EOL token, put in DED token then add EOL back
+                        let loc = tokens.pop().unwrap().1;
                         for _ in 0..(indent_stack.pop().unwrap() - indent_count) {
-                            tokens.push((Token::DED, (num, 0)))
+                            tokens.push((Token::DED, loc))
                         }
+                        tokens.push((Token::EOL, loc))
                     }
 
                     std::cmp::Ordering::Equal => (),
                     std::cmp::Ordering::Greater => {
                         if indent_count != indent_stack.last().unwrap() + 1 {
                             return Err(LexError::InconsitentIndent(num, indent_len));
-                        } else {
-                            tokens.push((Token::IND, (num, 0)));
-                            indent_stack.push(indent_count);
                         }
+                        tokens.push((Token::IND, (num, 0)));
+                        indent_stack.push(indent_count);
                     }
                 }
             }
@@ -187,6 +190,13 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             // get some important stuff
             let loc = (num, src[0].0);
             let c = src[0].1;
+
+            if c == '\\' {
+                match src.len() > 1 {
+                    true => return Err(LexError::CharAfterContinuation(num)),
+                    false => continue 'lines,
+                }
+            }
 
             // skipping time
             if c.is_whitespace() {
@@ -320,6 +330,9 @@ mod test {
     test!(keyword, "when attack" => [When,0:0; Attack,0:5; EOF,0:11]);
     test!(trailing_space, "1   " => [num(1),0:0; EOF,0:1]);
 
+    test!(line_continuation, "1\\\n+1" => [num(1),0:0; Plus,1:0; num(1),1:1; EOF,1:2]);
+    should_error!(error_line_continuation, "1\\ \n+1" => CharAfterContinuation(0));
+
     test!(multiline, "hello\n12" => [iden("hello"),0:0; EOL,0:5; num(12),1:0; EOF,1:2]);
 
     test!(multi_token, "== >= <= =>" => [Equality,0:0; GreaterEq,0:3; LesserEq,0:6; Arrow,0:9; EOF,0:11]);
@@ -353,47 +366,48 @@ mod test {
     test!(indent_cascade_space, "1\n 1\n  1\n 1\n1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:1; EOL,1:2;
-        IND,2:0; num(1),2:2; EOL,2:3;
-        DED,3:0; num(1),3:1; EOL,3:2;
-        DED,4:0; num(1),4:0; EOF,4:1
+        IND,2:0; num(1),2:2; DED,2:3; EOL,2:3;
+                 num(1),3:1; DED,3:2; EOL,3:2;
+                 num(1),4:0; EOF,4:1
     ]);
     test!(indent_cascade_multispace, "1\n  1\n    1\n  1\n1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:2; EOL,1:3;
-        IND,2:0; num(1),2:4; EOL,2:5;
-        DED,3:0; num(1),3:2; EOL,3:3;
-        DED,4:0; num(1),4:0; EOF,4:1
+        IND,2:0; num(1),2:4; DED,2:5; EOL,2:5;
+                 num(1),3:2; DED,3:3; EOL,3:3;
+                 num(1),4:0; EOF,4:1
     ]);
-    test!(indent_cascade_tab, "1\n 1\n  1\n 1\n1"=>[
+    test!(indent_cascade_tab, "1\n\t1\n\t\t1\n\t1\n1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:1; EOL,1:2;
-        IND,2:0; num(1),2:2; EOL,2:3;
-        DED,3:0; num(1),3:1; EOL,3:2;
-        DED,4:0; num(1),4:0; EOF,4:1
+        IND,2:0; num(1),2:2; DED,2:3; EOL,2:3;
+                 num(1),3:1; DED,3:2; EOL,3:2;
+                 num(1),4:0; EOF,4:1
     ]);
-    test!(indent_cascade_multitab, "1\n  1\n    1\n  1\n1"=>[
+    test!(indent_cascade_multitab, "1\n\t\t1\n\t\t\t\t1\n\t\t1\n1"=>[
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:2; EOL,1:3;
-        IND,2:0; num(1),2:4; EOL,2:5;
-        DED,3:0; num(1),3:2; EOL,3:3;
-        DED,4:0; num(1),4:0; EOF,4:1
+        IND,2:0; num(1),2:4; DED,2:5; EOL,2:5;
+                 num(1),3:2; DED,3:3; EOL,3:3;
+                 num(1),4:0; EOF,4:1
     ]);
 
     test!(indent_space_jump, "1\n 1\n  1\n1" => [
-                          num(1),0:0; EOL,0:1;
-        IND,1:0;          num(1),1:1; EOL,1:2;
-        IND,2:0;          num(1),2:2; EOL,2:3;
-        DED,3:0; DED,3:0; num(1),3:0; EOF,3:1
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:1; EOL,1:2;
+        IND,2:0; num(1),2:2; DED,2:3; DED,2:3; EOL,2:3;
+                 num(1),3:0; EOF,3:1
     ]);
     test!(indent_multispace_jump, "1\n  1\n    1\n1" => [
-                          num(1),0:0; EOL,0:1;
-        IND,1:0;          num(1),1:2; EOL,1:3;
-        IND,2:0;          num(1),2:4; EOL,2:5;
-        DED,3:0; DED,3:0; num(1),3:0; EOF,3:1
+                 num(1),0:0; EOL,0:1;
+        IND,1:0; num(1),1:2; EOL,1:3;
+        IND,2:0; num(1),2:4; DED,2:5; DED,2:5; EOL,2:5;
+                 num(1),3:0; EOF,3:1
     ]);
 
-    should_error!(indent_wrong_type, "  1\n\t1" => InconsitentIndent(1, 1));
-    should_error!(indent_inconsitent, "  1\n   1" => InconsitentIndent(1, 3));
+    should_error!(error_indent_wrong_type, "  1\n\t1" => InconsitentIndent(1, 1));
+    should_error!(error_indent_inconsitent, "  1\n   1" => InconsitentIndent(1, 3));
+    should_error!(error_indent_first, "  1" => FirstLineIndent);
 
     test!(space, "   " => []);
     test!(empty, "" => []);

@@ -94,6 +94,9 @@ impl Parser {
             while self.not_eof() && !matches!(self.curr(), Token::DED) {
                 body.push(self.parse_stmt()?);
             }
+            if self.not_eof() {
+                self.expect(&[Token::DED])?;
+            }
             Ok(Stmt::Block(body))
         } else {
             Ok(Stmt::Block(vec![self.parse_stmt()?]))
@@ -102,14 +105,16 @@ impl Parser {
 
     fn parse_stmt(&mut self) -> Maybe<Node> {
         // if it is a expression skip EOL check else check them for stmt
-        let stmt = Node::Stmt(match self.curr() {
-            Token::Var => self.parse_var_decl()?,
-            Token::If => self.parse_if()?,
-            _ => return Ok(Node::Expr(self.parse_expr()?)),
-        });
+        let stmt = 'o: {
+            Node::Stmt(match self.curr() {
+                Token::Var => self.parse_var_decl()?,
+                Token::If => self.parse_if()?,
+                _ => break 'o Node::Expr(self.parse_expr()?),
+            })
+        };
 
         // if not eof expect a eol
-        if !matches!(self.curr(), Token::EOF) {
+        if !matches!(self.curr(), Token::EOF | Token::DED) {
             self.expect(&[Token::EOL])?;
         }
 
@@ -204,7 +209,6 @@ impl Parser {
             Token::Iden(it) => Expr::Iden(it),
             Token::True => Expr::Bool(true),
             Token::False => Expr::Bool(false),
-            Token::EOL => self.parse_unit()?,
             _ => {
                 return Err(ParseError::UnexpectedToken {
                     len: curr.0.get_len(),
@@ -278,10 +282,6 @@ mod test {
         Expr::Num(value as f32)
     }
 
-    fn unexpect(get: Token, loc: Loc, len: usize) -> ParseError {
-        ParseError::UnexpectedToken { get, loc, len }
-    }
-
     fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
         ParseError::ExpectToken {
             get,
@@ -298,8 +298,6 @@ mod test {
     test!(bin_oop, "1 + 1 * 9" => expr_ast![num(10)]);
 
     test!(multiline, "hello\n12"=>expr_ast![iden("hello"), num(12)]);
-    test!(multiline_expr, "1+\n1"=>expr_ast![num(2)]);
-    should_error!(line_break, "1\n+\n1" => unexpect(Token::Plus, (1, 0), 1));
 
     test!(var, "var x = 1" => vec![StmtN(Stmt::VarDecl("x".to_string(), num(1)))]);
     should_error!(var_where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));

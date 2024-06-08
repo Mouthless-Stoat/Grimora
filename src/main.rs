@@ -12,7 +12,7 @@ fn main() {
         // stdin.read_line(&mut buf).expect("Cannot get input");
         // buf = buf.trim().to_owned();
 
-        let buf = "if true + 1:\n\thelo".to_string();
+        let buf = "1\\\n+1".to_string();
 
         println!("{}", "=".repeat(40));
         println!(

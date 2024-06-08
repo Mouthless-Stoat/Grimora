@@ -3,12 +3,13 @@ mod parser;
 mod trans;
 
 use std::fmt::Display;
+use std::usize;
 
 use lexer::lex;
 
 use self::lexer::LexError;
 use self::parser::{ParseError, Parser};
-use self::trans::{trans, TABCHAR};
+use self::trans::trans;
 
 fn snippet(source: &String, loc: (usize, usize)) -> String {
     long_snippet(source, loc, 1)
@@ -48,13 +49,18 @@ impl Display for TranspileError {
                     line = line + 1,
                     snippet = long_snippet(source, (*line, 0), *len)
                 ),
-                LexError::FirstLineIndent => {
-                    write!(
-                        f,
-                        "\x1b[1;31mError\x1b[0m: Indent on the first line\n{snippet}",
-                        snippet = snippet(source, (0, 0))
-                    )
-                }
+                LexError::FirstLineIndent => write!(
+                    f,
+                    "\x1b[1;31mError\x1b[0m: Indent on the first line\n{snippet}",
+                    snippet = snippet(source, (0, 0))
+                ),
+                LexError::CharAfterContinuation(line) => write!(
+                    f,
+                    "\x1b[1;31mError\x1b[0m: Character after line continuation on {line}\n{snippet}",
+                    line = line +1,
+                    snippet = snippet(source, (*line, 0))
+
+                ),
             },
             TranspileError::ParseError { source, err } => match err {
                 ParseError::UnexpectedToken { get, loc, len } => {

@@ -52,12 +52,14 @@ mod test {
 
     test!(simple, "1" => "1");
     test!(bin, "1+1" => "2");
+    test!(multiline, "1\n2" => "1\n2");
+    test!(indent_multi_dedent, "if true:\n\tif true:\n\t\thello\nhello" => "if true:\n\tif true:\n\t\thello\nhello");
 
     test!(var, "var a = 10" => "var a_0 = 10");
 
-    test!(multiline, "1\n2" => "1\n2");
-
     test!(if_stmt, "if 1 + 1:\n\thello" => "if 2:\n\thello");
+    test!(if_stmt_single, "if true: hello" => "if true:\n\thello");
+
     test!(if_stmt_nest, "if true: if true: hello" => "if true:\n\tif true:\n\t\thello");
 
     test!(empty, "" => "pass");
