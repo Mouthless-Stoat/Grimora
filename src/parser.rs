@@ -271,6 +271,11 @@ impl Parser {
             Token::Num(it) => Expr::Num(it),
             Token::Iden(it) => Expr::Iden(it),
             Token::ReserveIden(it) => Expr::ReserveIden(it),
+            Token::OpenParen => {
+                let t = self.parse_expr()?;
+                self.expect(&[Token::CloseParen])?;
+                t
+            }
             _ => {
                 return Err(ParseError::UnexpectedToken {
                     len: curr.0.get_len(),
@@ -369,6 +374,8 @@ mod test {
 
     test!(bin, "1 + 1" => expr_ast![new_num(2)]);
     test!(bin_oop, "1 + 1 * 9" => expr_ast![new_num(10)]);
+
+    test!(paren, "(1 + 1) * 8" => expr_ast![new_num(16)]);
 
     test!(multiline, "hello\n12"=>expr_ast![new_iden("hello"), new_num(12)]);
 

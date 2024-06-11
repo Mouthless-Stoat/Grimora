@@ -35,13 +35,18 @@ pub enum Token {
     Num(f32),
     Iden(String),
 
+    OpenParen,
+    CloseParen,
+
     // single char
     Plus,
     Minus,
     Star,
     Slash,
     Equal,
+    Percent,
     Colon,
+    Dot,
 
     // multi char
     Arrow,
@@ -50,6 +55,7 @@ pub enum Token {
     Lesser,
     GreaterEq,
     LesserEq,
+    DoubleStar,
 
     // keyword
     Var,
@@ -106,8 +112,8 @@ impl Token {
     }
 }
 
-macro_rules! multi_token {
-    ($src:ident, $tokens:ident, $loc:ident, $($multi:literal => $tk:expr),*) => {
+macro_rules! symbol_token {
+    ($src:ident, $c:ident, $tokens:ident, $loc:ident, $($multi:literal => $tk:expr),* ;-----; $($single:literal => $single_tk:expr),*) => {
         {
             let t = $src.make_contiguous();
             $(
@@ -122,6 +128,16 @@ macro_rules! multi_token {
                 }
             )*
         }
+        if let Some(tk) = 'o: {
+            Some(match $c {
+                $($single => $single_tk,)*
+                _ => break 'o None,
+            })
+        } {
+            $tokens.push((tk, $loc));
+            $src.pop_front();
+            continue;
+        };
     };
 }
 
@@ -229,37 +245,32 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 continue;
             }
 
-            // check for longer token
-            multi_token!(
-                src, tokens, loc,
-
+            // check for symbol token
+            symbol_token!(
+                src, c, tokens, loc,
 
                 "==" =>Token::Equality,
                 ">=" => Token::GreaterEq,
                 "<=" => Token::LesserEq,
-                ">" => Token::Greater,
-                "<" => Token::Lesser,
+                "**" => Token::DoubleStar,
 
                 "=>" => Token::Arrow
-            );
 
-            // check for sing char token
-            if let Some(tk) = 'o: {
-                // wakcy ik but it reduce typing Some on every line
-                Some(match c {
-                    '+' => Token::Plus,
-                    '-' => Token::Minus,
-                    '*' => Token::Star,
-                    '/' => Token::Slash,
-                    '=' => Token::Equal,
-                    ':' => Token::Colon,
-                    _ => break 'o None,
-                })
-            } {
-                tokens.push((tk, loc));
-                src.pop_front();
-                continue;
-            };
+                ;-----;
+
+                '+' => Token::Plus,
+                '-' => Token::Minus,
+                '*' => Token::Star,
+                '/' => Token::Slash,
+                '%' => Token::Percent,
+                '=' => Token::Equal,
+                ':' => Token::Colon,
+                '>' => Token::Greater,
+                '<' => Token::Lesser,
+                '(' => Token::OpenParen,
+                ')' => Token::CloseParen,
+                '.' => Token::Dot
+            );
 
             // if it not a special character then i have to be number or alpha
             if !c.is_alphanumeric() {
@@ -270,19 +281,30 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             let is_alpha = c.is_alphabetic();
             let cond: fn(&(usize, char)) -> bool = match is_alpha {
                 true => |c| c.1.is_alphabetic(),
-                false => |c| c.1.is_numeric(),
+                false => |c| c.1.is_numeric() || c.1 == '_' || c.1 == '.',
             };
 
             let acc = {
                 let mut t = String::new();
+                let mut decimal_counter = 0;
                 loop {
                     match src.get(0).is_some_and(cond) {
-                        true => t.push(src.pop_front().unwrap().1),
+                        true => {
+                            let c = src[0];
+                            if !is_alpha && c.1 == '.' {
+                                decimal_counter += 1
+                            }
+                            if decimal_counter > 1 {
+                                break t;
+                            }
+                            t.push(src.pop_front().unwrap().1);
+                        }
                         false => break t,
                     }
                 }
             };
 
+            println!("{acc:?}");
             match is_alpha {
                 true => tokens.push((
                     match acc.as_str() {
@@ -305,7 +327,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                     },
                     loc,
                 )),
-                false => tokens.push((Token::Num(acc.parse().unwrap()), loc)),
+                false => tokens.push((Token::Num(acc.replace('_', "").parse().unwrap()), loc)),
             }
         }
 
@@ -355,6 +377,10 @@ mod test {
 
     test!(simple, "1 + 1" => [num(1),0:0; Plus,0:2; num(1),0:4; EOF,0:5]);
     test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; EOF,0:17]);
+
+    test!(float, "1.9" => [Num(1.9),0:0; EOF,0:3]);
+    test!(float_dot, "1.9." => [Num(1.9),0:0; Dot,0:3; EOF,0:4]);
+
     test!(keyword, "when" => [When,0:0; EOF,0:4]);
     test!(trailing_space, "1   " => [num(1),0:0; EOF,0:1]);
 
