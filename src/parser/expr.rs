@@ -1,13 +1,13 @@
 use std::fmt::Display;
 
-use crate::lexer::Token;
+use crate::lexer::{Iden, Token};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Num(f32),
     Iden(String),
     Bin(Box<Expr>, Token, Box<Expr>),
-    Bool(bool),
+    ReserveIden(Iden),
 }
 
 impl Expr {
@@ -22,7 +22,7 @@ impl Display for Expr {
             Expr::Num(int) => write!(f, "{int}"),
             Expr::Iden(iden) => write!(f, "{iden}"),
             Expr::Bin(left, op, right) => write!(f, "{left} {op} {right}",),
-            Expr::Bool(bool) => write!(f, "{bool}"),
+            Expr::ReserveIden(iden) => write!(f, "{iden}"),
         }
     }
 }

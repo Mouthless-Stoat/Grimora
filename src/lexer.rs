@@ -3,6 +3,33 @@ use std::fmt::{Debug, Display};
 use std::{char, usize};
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Iden {
+    Card,
+    Friendly,
+    Fight,
+    Slots,
+    True,
+    False,
+}
+
+impl Display for Iden {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Iden::Card => "card",
+                Iden::Friendly => "isFriendly",
+                Iden::Fight => "fightManager",
+                Iden::Slots => "slotManager",
+                Iden::True => "true",
+                Iden::False => "false",
+            }
+        )
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     // literal
     Num(f32),
@@ -28,14 +55,12 @@ pub enum Token {
     Var,
     If,
     When,
-    Attack,
-    Summon,
-    Hit,
-    Death,
-    Move,
 
-    True,
-    False,
+    And,
+    Or,
+    Not,
+
+    ReserveIden(Iden),
 
     EOL,
     EOF,
@@ -263,16 +288,19 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                     match acc.as_str() {
                         "var" => Token::Var,
                         "if" => Token::If,
-
                         "when" => Token::When,
-                        "attack" => Token::Attack,
-                        "summon" => Token::Summon,
-                        "hit" => Token::Hit,
-                        "death" => Token::Death,
-                        "move" => Token::Move,
 
-                        "true" => Token::True,
-                        "false" => Token::False,
+                        "and" => Token::And,
+                        "or" => Token::Or,
+                        "not" => Token::Not,
+
+                        "card" => Token::ReserveIden(Iden::Card),
+                        "friendly" => Token::ReserveIden(Iden::Friendly),
+                        "fight" => Token::ReserveIden(Iden::Fight),
+                        "slots" => Token::ReserveIden(Iden::Slots),
+                        "true" => Token::ReserveIden(Iden::True),
+                        "false" => Token::ReserveIden(Iden::False),
+
                         _ => Token::Iden(acc),
                     },
                     loc,
@@ -327,7 +355,7 @@ mod test {
 
     test!(simple, "1 + 1" => [num(1),0:0; Plus,0:2; num(1),0:4; EOF,0:5]);
     test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; EOF,0:17]);
-    test!(keyword, "when attack" => [When,0:0; Attack,0:5; EOF,0:11]);
+    test!(keyword, "when" => [When,0:0; EOF,0:4]);
     test!(trailing_space, "1   " => [num(1),0:0; EOF,0:1]);
 
     test!(line_continuation, "1\\\n+1" => [num(1),0:0; Plus,1:0; num(1),1:1; EOF,1:2]);

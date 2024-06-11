@@ -1,7 +1,6 @@
 use lang::transpile;
 
 fn main() {
-    println!("extends SigilEffect\nfunc handle_event(event, params):\n\tif true:\n\t\tif true:\n\t\thello");
     loop {
         // let stdin = std::io::stdin();
         // let mut stdout = std::io::stdout();
@@ -12,9 +11,11 @@ fn main() {
         // stdin.read_line(&mut buf).expect("Cannot get input");
         // buf = buf.trim().to_owned();
 
-        let buf = "1\\\n+1".to_string();
+        let buf = "when summon: var a = 1 + 1".to_string();
 
-        println!("{}", "=".repeat(40));
+        println!("{t} INPUT {t}", t = "=".repeat(20));
+        println!("{buf}");
+        println!("{t} OUTPUT {r}", t = "=".repeat(20), r = "=".repeat(19));
         println!(
             "{}",
             match transpile(buf) {
@@ -22,7 +23,7 @@ fn main() {
                 Err(err) => err.to_string(),
             }
         );
-        println!("{}", "=".repeat(40));
+        println!("{}", "=".repeat(47));
 
         break;
     }

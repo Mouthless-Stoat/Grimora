@@ -95,6 +95,8 @@ impl Display for TranspileError {
                     loc.1 + 1,
                     long_snippet(source, *loc, *len)
                 ),
+                ParseError::InvalidEventIden(_, _) => todo!(),
+                ParseError::InvalidEventType(_, _) => todo!(),
             },
         }
     }

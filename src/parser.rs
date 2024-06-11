@@ -8,6 +8,8 @@ use stmt::Stmt;
 
 use crate::lexer::{Loc, Token, TokenLoc};
 
+use self::stmt::{EventIden, EventType};
+
 #[derive(Debug, PartialEq)]
 pub enum Node {
     Expr(Expr),
@@ -37,6 +39,8 @@ pub enum ParseError {
         want: Vec<Token>,
         len: usize,
     },
+    InvalidEventIden(Loc, usize),
+    InvalidEventType(Loc, usize),
 }
 
 pub struct Parser {
@@ -85,22 +89,23 @@ impl Parser {
         self.tokens.pop_front().unwrap()
     }
 
-    fn parse_block(&mut self) -> Maybe<Stmt> {
+    fn parse_block(&mut self) -> Maybe<Box<Stmt>> {
         self.expect(&[Token::Colon])?;
-        if matches!(self.curr(), Token::EOL) {
-            self.next();
-            let mut body = Vec::new();
-            self.expect(&[Token::IND])?;
-            while self.not_eof() && !matches!(self.curr(), Token::DED) {
-                body.push(self.parse_stmt()?);
+        Ok(match self.curr() {
+            Token::EOL => {
+                self.next();
+                let mut body = Vec::new();
+                self.expect(&[Token::IND])?;
+                while self.not_eof() && !matches!(self.curr(), Token::DED) {
+                    body.push(self.parse_stmt()?);
+                }
+                if self.not_eof() {
+                    self.expect(&[Token::DED])?;
+                }
+                Box::new(Stmt::Block(body))
             }
-            if self.not_eof() {
-                self.expect(&[Token::DED])?;
-            }
-            Ok(Stmt::Block(body))
-        } else {
-            Ok(Stmt::Block(vec![self.parse_stmt()?]))
-        }
+            _ => Box::new(Stmt::Block(vec![self.parse_stmt()?])),
+        })
     }
 
     fn parse_stmt(&mut self) -> Maybe<Node> {
@@ -109,6 +114,7 @@ impl Parser {
             Node::Stmt(match self.curr() {
                 Token::Var => self.parse_var_decl()?,
                 Token::If => self.parse_if()?,
+                Token::When => self.parse_event()?,
                 _ => break 'o Node::Expr(self.parse_expr()?),
             })
         };
@@ -124,25 +130,18 @@ impl Parser {
     // STMT PARSE
     fn parse_var_decl(&mut self) -> Maybe<Stmt> {
         self.next();
-        let name = self.next_loc();
-        if matches!(name.0, Token::Iden(_)) {
-            let name = name.0;
-            self.expect(&[Token::Equal])?;
-            let val = self.parse_expr()?;
-            Ok(Stmt::VarDecl(
-                match name {
-                    Token::Iden(n) => n,
-                    _ => unreachable!(),
-                },
-                val,
-            ))
-        } else {
-            Err(ParseError::ExpectToken {
-                len: name.0.get_len(),
-                get: name.0,
-                loc: name.1,
+        match self.next_loc() {
+            (Token::Iden(name), _) => {
+                self.expect(&[Token::Equal])?;
+                let val = self.parse_expr()?;
+                Ok(Stmt::VarDecl(name, val))
+            }
+            (get, loc) => Err(ParseError::ExpectToken {
+                len: get.get_len(),
+                get,
+                loc,
                 want: vec![Token::Iden("identifier".to_string())],
-            })
+            }),
         }
     }
 
@@ -152,7 +151,71 @@ impl Parser {
         let cond = self.parse_expr()?;
         let body = self.parse_block()?;
 
-        Ok(Stmt::if_stmt(cond, body))
+        Ok(Stmt::If(cond, body))
+    }
+
+    fn parse_event(&mut self) -> Maybe<Stmt> {
+        self.next();
+        let iden: EventIden;
+        let event: EventType;
+
+        match self.next_loc() {
+            (Token::Iden(it), loc) if matches!(it.as_str(), "die" | "hit" | "summon" | "move") => {
+                iden = EventIden::This;
+                event = match it.as_str() {
+                    "die" => EventType::Die,
+                    "hit" => EventType::Hit,
+                    "summon" => EventType::Summon,
+                    "move" => EventType::Move,
+                    _ => return Err(ParseError::InvalidEventType(loc, it.len())),
+                };
+            }
+            (Token::Iden(it), loc) => {
+                iden = match it.as_str() {
+                    "this" => EventIden::This,
+                    "other" => EventIden::Other,
+                    "any" => EventIden::Any,
+                    _ => return Err(ParseError::InvalidEventIden(loc, it.len())),
+                };
+                event = match self.next_loc() {
+                    (Token::Iden(it), loc) => match it.as_str() {
+                        "die" => EventType::Die,
+                        "hit" => EventType::Hit,
+                        "summon" => EventType::Summon,
+                        "move" => EventType::Move,
+                        _ => return Err(ParseError::InvalidEventType(loc, it.len())),
+                    },
+                    (get, loc) => {
+                        return Err(ParseError::ExpectToken {
+                            len: get.get_len(),
+                            get,
+                            loc,
+                            want: vec![Token::Iden("identifier".to_string())],
+                        })
+                    }
+                };
+            }
+            (get, loc) => {
+                return Err(ParseError::ExpectToken {
+                    len: get.get_len(),
+                    get,
+                    loc,
+                    want: vec![Token::Iden("identifier".to_string())],
+                })
+            }
+        }
+
+        let cond = match self.curr() {
+            Token::And => {
+                self.next();
+                Some(self.parse_expr()?)
+            }
+            _ => None,
+        };
+
+        let body = self.parse_block()?;
+
+        Ok(Stmt::Event(iden, event, cond, body))
     }
 
     // EXPR PARSE
@@ -207,8 +270,7 @@ impl Parser {
         Ok(match curr.0 {
             Token::Num(it) => Expr::Num(it),
             Token::Iden(it) => Expr::Iden(it),
-            Token::True => Expr::Bool(true),
-            Token::False => Expr::Bool(false),
+            Token::ReserveIden(it) => Expr::ReserveIden(it),
             _ => {
                 return Err(ParseError::UnexpectedToken {
                     len: curr.0.get_len(),
@@ -222,11 +284,14 @@ impl Parser {
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::{lex, Loc, Token};
+    use crate::lexer::{lex, Iden, Loc, Token};
     use crate::parser::{
-        Expr,
+        stmt::{EventIden::*, EventType::*},
+        EventIden, EventType, Expr,
         Node::{Expr as ExprN, Stmt as StmtN},
-        ParseError, Parser, Stmt,
+        ParseError,
+        ParseError::*,
+        Parser, Stmt,
     };
 
     // Helper to make typing ast less annoying
@@ -274,16 +339,24 @@ mod test {
         };
     }
 
-    fn iden(name: &str) -> Expr {
+    fn new_iden(name: &str) -> Expr {
         Expr::Iden(name.to_string())
     }
 
-    fn num(value: usize) -> Expr {
+    fn new_num(value: usize) -> Expr {
         Expr::Num(value as f32)
     }
 
+    fn new_if_stmt(cond: Expr, body: Stmt) -> Stmt {
+        Stmt::If(cond, Box::new(body))
+    }
+
+    fn new_event(iden: EventIden, event: EventType, expr: Option<Expr>, body: Stmt) -> Stmt {
+        Stmt::Event(iden, event, expr, Box::new(body))
+    }
+
     fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
-        ParseError::ExpectToken {
+        ExpectToken {
             get,
             loc,
             want,
@@ -291,29 +364,29 @@ mod test {
         }
     }
 
-    test!(simple, "1" => expr_ast![num(1)]);
+    test!(simple, "1" => expr_ast![new_num(1)]);
     test!(empty, "" => []);
 
-    test!(bin, "1 + 1" => expr_ast![num(2)]);
-    test!(bin_oop, "1 + 1 * 9" => expr_ast![num(10)]);
+    test!(bin, "1 + 1" => expr_ast![new_num(2)]);
+    test!(bin_oop, "1 + 1 * 9" => expr_ast![new_num(10)]);
 
-    test!(multiline, "hello\n12"=>expr_ast![iden("hello"), num(12)]);
+    test!(multiline, "hello\n12"=>expr_ast![new_iden("hello"), new_num(12)]);
 
-    test!(var, "var x = 1" => vec![StmtN(Stmt::VarDecl("x".to_string(), num(1)))]);
+    test!(var, "var x = 1" => vec![StmtN(Stmt::VarDecl("x".to_string(), new_num(1)))]);
     should_error!(var_where_iden, "var 1 = 1" => expect(Token::Num(1.0), (0, 4), vec![Token::Iden("identifier".to_string())], 1));
     should_error!(var_where_equal, "var e" => expect(Token::EOF, (0, 5), vec![Token::Equal], 1));
 
-    test!(if_stmt, "if 1 + 1:\n\thelo" => [StmtN(Stmt::if_stmt(num(2), Stmt::Block(vec![ExprN(iden("helo"))])))]);
+    test!(if_stmt, "if 1 + 1:\n\thelo" => [StmtN(new_if_stmt(new_num(2), Stmt::Block(vec![ExprN(new_iden("helo"))])))]);
     test!(if_stmt_nest, "if true: if true: hello" => [
         StmtN(
-            Stmt::if_stmt(
-                Expr::Bool(true),
+            new_if_stmt(
+                Expr::ReserveIden(Iden::True),
                 Stmt::Block(
                     vec![
                         StmtN(
-                            Stmt::if_stmt(
-                                Expr::Bool(true),
-                                Stmt::Block(vec![ExprN(iden("hello"))])
+                            new_if_stmt(
+                                Expr::ReserveIden(Iden::True),
+                                Stmt::Block(vec![ExprN(new_iden("hello"))])
                             )
                         )
                     ]
@@ -321,4 +394,13 @@ mod test {
             )
         )
     ]);
+
+    test!(event, "when summon: 1" => [StmtN(new_event(This, Summon, None, Stmt::Block(vec![ExprN(new_num(1))])))]);
+    test!(event_explicit, "when this summon: 1" => [StmtN(new_event(This, Summon, None, Stmt::Block(vec![ExprN(new_num(1))])))]);
+    test!(event_other_iden, "when other summon: 1" => [StmtN(new_event(Other, Summon, None, Stmt::Block(vec![ExprN(new_num(1))])))]);
+    test!(event_condition, "when summon and true: 1" => [StmtN(new_event(This, Summon, Some(Expr::ReserveIden(Iden::True)), Stmt::Block(vec![ExprN(new_num(1))])))]);
+    test!(event_other_iden_condition, "when other summon and true: 1" => [StmtN(new_event(Other, Summon, Some(Expr::ReserveIden(Iden::True)), Stmt::Block(vec![ExprN(new_num(1))])))]);
+
+    should_error!(event_invalid_iden, "when what summon: 1" => InvalidEventIden((0, 5), 4));
+    should_error!(event_invalid_event, "when this what: 1" => InvalidEventType((0, 10), 4));
 }
