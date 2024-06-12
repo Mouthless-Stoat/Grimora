@@ -53,6 +53,9 @@ mod test {
     test!(simple, "1" => "1");
     test!(bin, "1+1" => "2");
     test!(multiline, "1\n2" => "1\n2");
+    test!(paren, "1*(1+a)" => "1 * (1 + a)");
+    test!(paren_top, "(1 + a)" => "1 + a");
+
     test!(empty, "" => "pass");
 
     test!(indent_multi_dedent, "if true:\n\tif true:\n\t\thello\nhello" => "if true:\n\tif true:\n\t\thello\nhello");

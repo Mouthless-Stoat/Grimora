@@ -220,7 +220,10 @@ impl Parser {
 
     // EXPR PARSE
     fn parse_expr(&mut self) -> Maybe<Expr> {
-        Ok(self.parse_add_bin()?)
+        Ok(match self.parse_add_bin()? {
+            Expr::Paren(expr) => *expr,
+            expr => expr,
+        })
     }
 
     /// Parse add/sub binary expression
@@ -238,7 +241,7 @@ impl Parser {
                     _ => unreachable!(),
                 })
             } else {
-                left = Expr::bin(left, op, right);
+                left = Expr::Bin(Box::new(left), op, Box::new(right));
             };
         }
         return Ok(left);
@@ -246,10 +249,10 @@ impl Parser {
 
     /// Parse mul/div binary expression
     fn parse_mul_bin(&mut self) -> Maybe<Expr> {
-        let mut left = self.parse_unit()?;
+        let mut left = self.parse_un()?;
         while matches!(self.curr(), Token::Star | Token::Slash) {
             let op = self.next();
-            let right = self.parse_unit()?;
+            let right = self.parse_un()?;
 
             if let (Expr::Num(l), Expr::Num(r)) = (&left, &right) {
                 left = Expr::Num(match op {
@@ -258,10 +261,20 @@ impl Parser {
                     _ => unreachable!(),
                 })
             } else {
-                left = Expr::bin(left, op, right);
+                left = Expr::Bin(Box::new(left), op, Box::new(right));
             };
         }
         return Ok(left);
+    }
+
+    fn parse_un(&mut self) -> Maybe<Expr> {
+        Ok(match self.curr() {
+            Token::Minus => match self.parse_expr()? {
+                Expr::Num(num) => Expr::Num(-num),
+                expr => Expr::Un(Token::Minus, Box::new(expr)),
+            },
+            _ => self.parse_unit()?,
+        })
     }
 
     /// Parse a unit or literal
@@ -274,7 +287,10 @@ impl Parser {
             Token::OpenParen => {
                 let t = self.parse_expr()?;
                 self.expect(&[Token::CloseParen])?;
-                t
+                match t {
+                    Expr::Num(_) | Expr::Iden(_) | Expr::ReserveIden(_) => t,
+                    _ => Expr::Paren(Box::new(t)),
+                }
             }
             _ => {
                 return Err(ParseError::UnexpectedToken {
@@ -360,6 +376,14 @@ mod test {
         Stmt::Event(iden, event, expr, Box::new(body))
     }
 
+    fn new_bin(left: Expr, op: Token, right: Expr) -> Expr {
+        Expr::Bin(Box::new(left), op, Box::new(right))
+    }
+
+    fn new_paren(expr: Expr) -> Expr {
+        Expr::Paren(Box::new(expr))
+    }
+
     fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
         ExpectToken {
             get,
@@ -376,6 +400,7 @@ mod test {
     test!(bin_oop, "1 + 1 * 9" => expr_ast![new_num(10)]);
 
     test!(paren, "(1 + 1) * 8" => expr_ast![new_num(16)]);
+    test!(paren_iden, "1 * (1 + a)" => expr_ast![new_bin(new_num(1), Token::Star, new_paren(new_bin(new_num(1), Token::Plus, new_iden("a"))))]);
 
     test!(multiline, "hello\n12"=>expr_ast![new_iden("hello"), new_num(12)]);
 

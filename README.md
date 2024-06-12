@@ -1,7 +1,7 @@
 # Todo
 
 ```
-[ ] Unary Expression
+[X] Unary Expression
 [ ] List
 [ ] Subscription
 [ ] Function

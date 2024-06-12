@@ -391,72 +391,72 @@ mod test {
 
     test!(multi_token, "== >= <= =>" => [Equality,0:0; GreaterEq,0:3; LesserEq,0:6; Arrow,0:9; EOF,0:11]);
 
-    test!(indent_space, "1\n 1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:1; EOF,1:2]);
-    test!(inden_tab, "1\n\t1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:1; EOF,1:2]);
-    test!(indent_multispace, "1\n   1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:3; EOF,1:4]);
-    test!(inden_multitab, "1\n\t\t\t1"=>[num(1),0:0; EOL,0:1; IND,1:0; num(1),1:3; EOF,1:4]);
+    test!(indent_space, "1\n 1" => [num(1),0:0; EOL,0:1; IND,1:0; num(1),1:1; EOF,1:2]);
+    test!(inden_tab, "1\n\t1" => [num(1),0:0; EOL,0:1; IND,1:0; num(1),1:1; EOF,1:2]);
+    test!(indent_multispace, "1\n   1" => [num(1),0:0; EOL,0:1; IND,1:0; num(1),1:3; EOF,1:4]);
+    test!(inden_multitab, "1\n\t\t\t1" => [num(1),0:0; EOL,0:1; IND,1:0; num(1),1:3; EOF,1:4]);
 
-    test!(indent_multiline_space, "1\n 1\n  1"=>[
+    test!(indent_multiline_space, "1\n 1\n  1" => [
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:1; EOL,1:2;
         IND,2:0; num(1),2:2; EOF,2:3
     ]);
-    test!(indent_multiline_tab, "1\n\t1\n\t\t1"=>[
+    test!(indent_multiline_tab, "1\n\t1\n\t\t1" => [
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:1; EOL,1:2;
         IND,2:0; num(1),2:2; EOF,2:3
     ]);
-    test!(indent_multiline_multispace, "1\n  1\n    1"=>[
+    test!(indent_multiline_multispace, "1\n  1\n    1" => [
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:2; EOL,1:3;
         IND,2:0; num(1),2:4; EOF,2:5
     ]);
-    test!(indent_multiline_multitab, "1\n\t\t1\n\t\t\t\t1"=>[
+    test!(indent_multiline_multitab, "1\n\t\t1\n\t\t\t\t1" => [
                  num(1),0:0; EOL,0:1;
         IND,1:0; num(1),1:2; EOL,1:3;
         IND,2:0; num(1),2:4; EOF,2:5
     ]);
 
-    test!(indent_cascade_space, "1\n 1\n  1\n 1\n1"=>[
-                 num(1),0:0; EOL,0:1;
-        IND,1:0; num(1),1:1; EOL,1:2;
+    test!(indent_cascade_space, "1\n 1\n  1\n 1\n1" => [
+                 num(1),0:0;          EOL,0:1;
+        IND,1:0; num(1),1:1;          EOL,1:2;
         IND,2:0; num(1),2:2; DED,2:3; EOL,2:3;
                  num(1),3:1; DED,3:2; EOL,3:2;
-                 num(1),4:0; EOF,4:1
+                 num(1),4:0;          EOF,4:1
     ]);
-    test!(indent_cascade_multispace, "1\n  1\n    1\n  1\n1"=>[
-                 num(1),0:0; EOL,0:1;
-        IND,1:0; num(1),1:2; EOL,1:3;
+    test!(indent_cascade_multispace, "1\n  1\n    1\n  1\n1" => [
+                 num(1),0:0;          EOL,0:1;
+        IND,1:0; num(1),1:2;          EOL,1:3;
         IND,2:0; num(1),2:4; DED,2:5; EOL,2:5;
                  num(1),3:2; DED,3:3; EOL,3:3;
-                 num(1),4:0; EOF,4:1
+                 num(1),4:0;          EOF,4:1
     ]);
-    test!(indent_cascade_tab, "1\n\t1\n\t\t1\n\t1\n1"=>[
-                 num(1),0:0; EOL,0:1;
-        IND,1:0; num(1),1:1; EOL,1:2;
+    test!(indent_cascade_tab, "1\n\t1\n\t\t1\n\t1\n1" => [
+                 num(1),0:0;          EOL,0:1;
+        IND,1:0; num(1),1:1;          EOL,1:2;
         IND,2:0; num(1),2:2; DED,2:3; EOL,2:3;
                  num(1),3:1; DED,3:2; EOL,3:2;
-                 num(1),4:0; EOF,4:1
+                 num(1),4:0;          EOF,4:1
     ]);
-    test!(indent_cascade_multitab, "1\n\t\t1\n\t\t\t\t1\n\t\t1\n1"=>[
-                 num(1),0:0; EOL,0:1;
-        IND,1:0; num(1),1:2; EOL,1:3;
+    test!(indent_cascade_multitab, "1\n\t\t1\n\t\t\t\t1\n\t\t1\n1" => [
+                 num(1),0:0;          EOL,0:1;
+        IND,1:0; num(1),1:2;          EOL,1:3;
         IND,2:0; num(1),2:4; DED,2:5; EOL,2:5;
                  num(1),3:2; DED,3:3; EOL,3:3;
-                 num(1),4:0; EOF,4:1
+                 num(1),4:0;          EOF,4:1
     ]);
 
     test!(indent_space_jump, "1\n 1\n  1\n1" => [
-                 num(1),0:0; EOL,0:1;
-        IND,1:0; num(1),1:1; EOL,1:2;
+                 num(1),0:0;                   EOL,0:1;
+        IND,1:0; num(1),1:1;                   EOL,1:2;
         IND,2:0; num(1),2:2; DED,2:3; DED,2:3; EOL,2:3;
-                 num(1),3:0; EOF,3:1
+                 num(1),3:0;                   EOF,3:1
     ]);
     test!(indent_multispace_jump, "1\n  1\n    1\n1" => [
-                 num(1),0:0; EOL,0:1;
-        IND,1:0; num(1),1:2; EOL,1:3;
+                 num(1),0:0;                   EOL,0:1;
+        IND,1:0; num(1),1:2;                   EOL,1:3;
         IND,2:0; num(1),2:4; DED,2:5; DED,2:5; EOL,2:5;
-                 num(1),3:0; EOF,3:1
+                 num(1),3:0;                   EOF,3:1
     ]);
 
     should_error!(error_indent_wrong_type, "  1\n\t1" => InconsitentIndent(1, 1));
