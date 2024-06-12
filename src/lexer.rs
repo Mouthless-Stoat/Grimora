@@ -47,6 +47,7 @@ pub enum Token {
     Percent,
     Colon,
     Dot,
+    Question,
 
     // multi char
     Arrow,
@@ -83,12 +84,19 @@ impl Display for Token {
             match self {
                 Token::Num(num) => return write!(f, "{num}"),
                 Token::Iden(iden) => return write!(f, "{iden}"),
+
+                Token::OpenParen => "(",
+                Token::CloseParen => ")",
+
                 Token::Plus => "+",
                 Token::Minus => "-",
                 Token::Star => "*",
                 Token::Slash => "/",
                 Token::Equal => "=",
+                Token::Percent => "%",
                 Token::Colon => ":",
+                Token::Question => "?",
+
                 Token::Arrow => "=>",
 
                 Token::Equality => "==",
@@ -96,6 +104,7 @@ impl Display for Token {
                 Token::Lesser => "<",
                 Token::GreaterEq => ">=",
                 Token::LesserEq => "<=",
+                Token::DoubleStar => "**",
 
                 _ => return write!(f, "{:?}", self),
             }
