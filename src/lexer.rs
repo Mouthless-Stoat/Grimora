@@ -34,6 +34,7 @@ pub enum Token {
     // literal
     Num(f32),
     Iden(String),
+    String(String),
 
     OpenParen,
     CloseParen,
@@ -121,7 +122,7 @@ impl Token {
     }
 }
 
-macro_rules! symbol_token {
+macro_rules! match_token {
     ($src:ident, $c:ident, $tokens:ident, $loc:ident, $($multi:literal => $tk:expr),* ;-----; $($single:literal => $single_tk:expr),*) => {
         {
             let t = $src.make_contiguous();
@@ -157,6 +158,8 @@ pub enum LexError {
     InvalidToken(char, Loc),
     InconsitentIndent(usize, usize),
     CharAfterContinuation(usize),
+    UnterminatedString(usize),
+    InvalidEscape(usize, char),
 }
 
 pub type TokenLoc = (Token, (usize, usize));
@@ -246,6 +249,28 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                     true => return Err(LexError::CharAfterContinuation(num)),
                     false => continue 'lines,
                 }
+            } else if c == '"' {
+                src.pop_front();
+                let mut acc = String::new();
+                loop {
+                    if src.is_empty() {
+                        return Err(LexError::UnterminatedString(num));
+                    }
+                    let c = src.pop_front().unwrap().1;
+                    if c == '\\' {
+                        match src.pop_front() {
+                            Some((_, c @ ('"' | 'n'))) => acc.push(c),
+                            Some((_, c)) => return Err(LexError::InvalidEscape(num, c)),
+                            None => return Err(LexError::UnterminatedString(num)),
+                        }
+                        continue;
+                    } else if c == '"' {
+                        tokens.push((Token::String(acc), loc));
+                        break;
+                    }
+                    acc.push(c)
+                }
+                continue;
             }
 
             // skipping time
@@ -255,7 +280,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             }
 
             // check for symbol token
-            symbol_token!(
+            match_token!(
                 src, c, tokens, loc,
 
                 "==" =>Token::Equality,
@@ -281,7 +306,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 '.' => Token::Dot
             );
 
-            // if it not a special character then i have to be number or alpha
+            // if it not a special character then it have to be number or alpha
             if !c.is_alphanumeric() {
                 return Err(LexError::InvalidToken(c, loc)); // lexer don't know what this is
             }
@@ -355,14 +380,18 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::{lex, LexError::*, Token::*};
+    use crate::lexer::{lex, LexError::*, Token, Token::*};
 
-    fn num(num: usize) -> crate::lexer::Token {
+    fn num(num: usize) -> Token {
         Num(num as f32)
     }
 
-    fn iden(name: &str) -> crate::lexer::Token {
+    fn iden(name: &str) -> Token {
         Iden(name.to_string())
+    }
+
+    fn str(string: &str) -> Token {
+        String(string.to_string())
     }
 
     // macro to help with writing test
@@ -386,6 +415,11 @@ mod test {
 
     test!(simple, "1 + 1" => [num(1),0:0; Plus,0:2; num(1),0:4; EOF,0:5]);
     test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; EOF,0:17]);
+
+    test!(string, "\"string\"" => [str("string"),0:0; EOF,0:8]);
+    test!(string_espace, "\"a\\\"\"" => [str("a\""),0:0; EOF,0:5]);
+    should_error!(string_unterminated, "\"string" => UnterminatedString(0));
+    should_error!(string_invalid, "\"a\\!\"" => InvalidEscape(0, '!'));
 
     test!(float, "1.9" => [Num(1.9),0:0; EOF,0:3]);
     test!(float_dot, "1.9." => [Num(1.9),0:0; Dot,0:3; EOF,0:4]);

@@ -281,9 +281,10 @@ impl Parser {
     fn parse_unit(&mut self) -> Maybe<Expr> {
         let curr = self.next_loc();
         Ok(match curr.0 {
-            Token::Num(it) => Expr::Num(it),
-            Token::Iden(it) => Expr::Iden(it),
-            Token::ReserveIden(it) => Expr::ReserveIden(it),
+            Token::Num(num) => Expr::Num(num),
+            Token::String(str) => Expr::String(str),
+            Token::Iden(name) => Expr::Iden(name),
+            Token::ReserveIden(name) => Expr::ReserveIden(name),
             Token::OpenParen => {
                 let t = self.parse_expr()?;
                 self.expect(&[Token::CloseParen])?;
@@ -368,6 +369,10 @@ mod test {
         Expr::Num(value as f32)
     }
 
+    fn new_str(value: &str) -> Expr {
+        Expr::String(value.to_string())
+    }
+
     fn new_if_stmt(cond: Expr, body: Stmt) -> Stmt {
         Stmt::If(cond, Box::new(body))
     }
@@ -394,6 +399,7 @@ mod test {
     }
 
     test!(simple, "1" => expr_ast![new_num(1)]);
+    test!(string, "\"a\"" => expr_ast![new_str("a")]);
     test!(empty, "" => []);
 
     test!(bin, "1 + 1" => expr_ast![new_num(2)]);

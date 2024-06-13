@@ -61,6 +61,10 @@ impl Display for TranspileError {
                     snippet = snippet(source, (*line, 0))
 
                 ),
+                LexError::UnterminatedString(line) => write!(f, 
+                    "\x1b[1;31mError\x1b[0m: Unterminated string on line {line}"
+                ),
+                LexError::InvalidEscape(line, char) => write!(f, "\x1b[1;31mError\x1b[0m: Invalid escape character '{char}' on line {line}")
             },
             TranspileError::ParseError { source, err } => match err {
                 ParseError::UnexpectedToken { get, loc, len } => {
