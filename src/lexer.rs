@@ -331,6 +331,11 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                             if decimal_counter > 1 {
                                 break t;
                             }
+
+                            if c.1 == '_' {
+                                src.pop_front().unwrap();
+                                continue;
+                            }
                             t.push(src.pop_front().unwrap().1);
                         }
                         false => break t,
@@ -361,7 +366,7 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                     },
                     loc,
                 )),
-                false => tokens.push((Token::Num(acc.replace('_', "").parse().unwrap()), loc)),
+                false => tokens.push((Token::Num(acc.parse().unwrap()), loc)),
             }
         }
 
@@ -414,6 +419,7 @@ mod test {
     }
 
     test!(simple, "1 + 1" => [num(1),0:0; Plus,0:2; num(1),0:4; EOF,0:5]);
+    test!(number_sep, "1_000" => [num(1000),0:0; EOF,0:5]);
     test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; EOF,0:17]);
 
     test!(string, "\"string\"" => [str("string"),0:0; EOF,0:8]);
