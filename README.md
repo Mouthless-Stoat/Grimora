@@ -11,7 +11,7 @@
 [ ] Draw Stmt
 [ ] Augmented Assignment
 [ ] Assignment
-[ ] String Literal
+[X] String Literal
 [ ] Comment
 [ ] Static Type Checker
 ```
