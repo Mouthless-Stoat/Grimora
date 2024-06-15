@@ -115,6 +115,7 @@ impl Parser {
                 Token::Var => self.parse_var_decl()?,
                 Token::If => self.parse_if()?,
                 Token::When => self.parse_event()?,
+                Token::Iden(_) => break 'o self.parse_assign()?,
                 _ => break 'o Node::Expr(self.parse_expr()?),
             })
         };
@@ -216,6 +217,23 @@ impl Parser {
         let body = self.parse_block()?;
 
         Ok(Stmt::Event(iden, event, cond, body))
+    }
+
+    fn parse_assign(&mut self) -> Maybe<Node> {
+        let iden = self.parse_unit()?;
+        if !matches!(self.curr(), Token::Equal) {
+            return Ok(Node::Expr(iden));
+        }
+
+        self.next();
+
+        let iden = match iden {
+            Expr::Iden(name) => name,
+            _ => unreachable!(),
+        };
+        let value = self.parse_expr()?;
+
+        Ok(Node::Stmt(Stmt::Assign(iden, value)))
     }
 
     // EXPR PARSE
@@ -385,6 +403,10 @@ mod test {
         Expr::Bin(Box::new(left), op, Box::new(right))
     }
 
+    fn new_assign(name: &str, value: Expr) -> Stmt {
+        Stmt::Assign(name.to_string(), value)
+    }
+
     fn new_paren(expr: Expr) -> Expr {
         Expr::Paren(Box::new(expr))
     }
@@ -441,4 +463,6 @@ mod test {
 
     should_error!(event_invalid_iden, "when what summon: 1" => InvalidEventIden((0, 5), 4));
     should_error!(event_invalid_event, "when this what: 1" => InvalidEventType((0, 10), 4));
+
+    test!(assign, "a = 1" => [StmtN(new_assign("a", new_num(1)))]);
 }

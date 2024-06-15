@@ -123,7 +123,7 @@ impl Token {
 }
 
 macro_rules! match_token {
-    ($src:ident, $c:ident, $tokens:ident, $loc:ident, $($multi:literal => $tk:expr),* ;-----; $($single:literal => $single_tk:expr),*) => {
+    ($src:ident, $c:ident, $tokens:ident, $loc:ident, $($multi:literal => $tk:expr),* ;-----; $($single:pat => $single_tk:expr),*) => {
         {
             let t = $src.make_contiguous();
             $(

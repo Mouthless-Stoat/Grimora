@@ -18,7 +18,7 @@ impl Display for Expr {
         match self {
             Expr::Paren(expr) => write!(f, "({expr})"),
             Expr::Num(int) => write!(f, "{int}"),
-            Expr::String(str) => write!(f, "{str}"),
+            Expr::String(str) => write!(f, "{str:?}"),
             Expr::Iden(iden) => write!(f, "{iden}"),
             Expr::Bin(left, op, right) => write!(f, "{left} {op} {right}",),
             Expr::ReserveIden(iden) => write!(f, "{iden}"),

@@ -51,6 +51,7 @@ mod test {
     }
 
     test!(simple, "1" => "1");
+    test!(string, "\"hello\"" => "\"hello\"");
     test!(bin, "1+1" => "2");
     test!(multiline, "1\n2" => "1\n2");
     test!(paren, "1*(1+a)" => "1 * (1 + a)");
@@ -68,4 +69,6 @@ mod test {
     test!(if_stmt_nest, "if true: if true: hello" => "if true:\n\tif true:\n\t\thello");
 
     test!(event, "when summon: 1" => "if event == \"card_summoned\" and params[0] == card:\n\t1");
+
+    test!(assign, "a = 1" => "a_0 = 1");
 }

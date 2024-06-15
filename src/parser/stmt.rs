@@ -25,6 +25,7 @@ pub enum Stmt {
     If(Expr, Box<Stmt>),
     Block(Vec<Node>),
     Event(EventIden, EventType, Option<Expr>, Box<Stmt>),
+    Assign(String, Expr),
 }
 
 impl Display for Stmt {
@@ -65,6 +66,7 @@ impl Display for Stmt {
                     None => "".to_string(),
                 }
             ),
+            Stmt::Assign(iden, value) => write!(f, "{iden}_0 = {value}"),
         }
     }
 }

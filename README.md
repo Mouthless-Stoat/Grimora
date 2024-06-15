@@ -10,7 +10,7 @@
 [ ] Card Contructor
 [ ] Draw Stmt
 [ ] Augmented Assignment
-[ ] Assignment
+[X] Assignment
 [X] String Literal
 [ ] Comment
 [ ] Static Type Checker
