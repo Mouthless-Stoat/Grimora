@@ -61,13 +61,14 @@ impl Display for TranspileError {
                     snippet = snippet(source, (*line, 0))
 
                 ),
-                LexError::UnterminatedString(line) => write!(f, 
+                LexError::UnterminatedString(line) => write!(
+                    f,
                     "\x1b[1;31mError\x1b[0m: Unterminated string on line {line}"
                 ),
                 LexError::InvalidEscape(line, char) => write!(f, "\x1b[1;31mError\x1b[0m: Invalid escape character '{char}' on line {line}")
             },
             TranspileError::ParseError { source, err } => match err {
-                ParseError::UnexpectedToken { get, loc, len } => {
+                ParseError::UnexpectedToken(loc, len, get)=> {
                     write!(
                         f,
                         "\x1b[1;31mError\x1b[0m: Unexpected Token `{get}` at {line}:{col}\n{snippet}",
@@ -76,14 +77,9 @@ impl Display for TranspileError {
                         snippet = long_snippet(source, *loc, *len)
                     )
                 }
-                ParseError::ExpectToken {
-                    get,
-                    loc,
-                    want,
-                    len,
-                } => write!(
+                ParseError::ExpectToken(loc, len, get, want) => write!(
                     f,
-                    "\x1b[1;31mError\x1b[0m: Expect {}, found `{get}` at {}:{}\n{}",
+                    "\x1b[1;31mError\x1b[0m: Expect {}, found `{get}` at {line}:{col}\n{snippet}",
                     if want.len() == 1 {
                         format!("`{}`", want[0].to_string())
                     } else {
@@ -95,12 +91,24 @@ impl Display for TranspileError {
                                 .join(",")
                         )
                     },
-                    loc.0 + 1,
-                    loc.1 + 1,
-                    long_snippet(source, *loc, *len)
+                    line = loc.0 + 1,
+                    col = loc.1 + 1,
+                    snippet = long_snippet(source, *loc, *len)
                 ),
-                ParseError::InvalidEventIden(_, _) => todo!(),
-                ParseError::InvalidEventType(_, _) => todo!(),
+                ParseError::InvalidEventIden(loc, len) => write!(
+                    f,
+                    "\x1b[1;31mError\x1b[0m: Invalid event target at {line}:{col}\n{snippet}",
+                    line = loc.0 + 1,
+                    col = loc.1 + 1,
+                    snippet = long_snippet(source, *loc, *len)
+                ),
+                ParseError::InvalidEventType(loc, len) => write!(
+                    f,
+                    "\x1b[1;31mError\x1b[0m: Invalid event type at {line}:{col}\n{snippet}",
+                    line = loc.0 + 1,
+                    col = loc.1 + 1,
+                    snippet = long_snippet(source, *loc, *len)
+                )
             },
         }
     }

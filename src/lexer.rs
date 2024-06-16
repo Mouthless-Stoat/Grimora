@@ -35,6 +35,8 @@ pub enum Token {
     Num(f32),
     Iden(String),
     String(String),
+    ReserveIden(Iden),
+    Card(String),
 
     OpenParen,
     CloseParen,
@@ -67,8 +69,6 @@ pub enum Token {
     And,
     Or,
     Not,
-
-    ReserveIden(Iden),
 
     EOL,
     EOF,
@@ -271,6 +271,8 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                     acc.push(c)
                 }
                 continue;
+            } else if c == '#' {
+                break;
             }
 
             // skipping time
@@ -307,15 +309,15 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             );
 
             // if it not a special character then it have to be number or alpha
-            if !c.is_alphanumeric() {
+            if !c.is_alphanumeric() && c != '_' {
                 return Err(LexError::InvalidToken(c, loc)); // lexer don't know what this is
             }
 
             // constructing number and alphabet time
-            let is_alpha = c.is_alphabetic();
+            let is_alpha = c.is_alphabetic() || c == '_';
             let cond: fn(&(usize, char)) -> bool = match is_alpha {
-                true => |c| c.1.is_alphabetic(),
-                false => |c| c.1.is_numeric() || c.1 == '_' || c.1 == '.',
+                true => |(_, c)| c.is_alphanumeric() || *c == '_',
+                false => |(_, c)| c.is_numeric() || *c == '_' || *c == '.',
             };
 
             let acc = {
@@ -326,13 +328,12 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                         true => {
                             let c = src[0];
                             if !is_alpha && c.1 == '.' {
-                                decimal_counter += 1
+                                decimal_counter += 1;
+                                if decimal_counter > 1 {
+                                    break t;
+                                }
                             }
-                            if decimal_counter > 1 {
-                                break t;
-                            }
-
-                            if c.1 == '_' {
+                            if !is_alpha && c.1 == '_' {
                                 src.pop_front().unwrap();
                                 continue;
                             }
@@ -343,10 +344,12 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 }
             };
 
-            println!("{acc:?}");
             match is_alpha {
                 true => tokens.push((
                     match acc.as_str() {
+                        str if str.chars().nth(0).unwrap().is_uppercase() => {
+                            Token::Card(str.replace('_', " "))
+                        }
                         "var" => Token::Var,
                         "if" => Token::If,
                         "when" => Token::When,
@@ -376,6 +379,10 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
     let t = tokens.pop().unwrap().1;
     tokens.push((Token::EOF, t));
 
+    if tokens.len() <= 1 {
+        return Ok(VecDeque::new());
+    }
+
     if matches!(tokens[0].0, Token::IND) {
         return Err(LexError::FirstLineIndent);
     }
@@ -399,6 +406,10 @@ mod test {
         String(string.to_string())
     }
 
+    fn card(name: &str) -> Token {
+        Card(name.to_string())
+    }
+
     // macro to help with writing test
     macro_rules! test {
         ($name:ident, $source:literal => [$($tk:expr , $line:literal:$col:literal);*]) => {
@@ -419,8 +430,19 @@ mod test {
     }
 
     test!(simple, "1 + 1" => [num(1),0:0; Plus,0:2; num(1),0:4; EOF,0:5]);
+    test!(space, "   " => []);
+    test!(empty, "" => []);
+
+    test!(comment, "# hello" => []);
+    test!(comment_2, "1 #hello" => [num(1),0:0; EOF,0:8]);
+
     test!(number_sep, "1_000" => [num(1000),0:0; EOF,0:5]);
+
     test!(identifier, "thisIsAIdentifier" => [iden("thisIsAIdentifier"),0:0; EOF,0:17]);
+    test!(underscore, "_" => [iden("_"),0:0; EOF,0:1]);
+
+    test!(card_literal, "Wolf" => [card("Wolf"),0:0; EOF,0:4]);
+    test!(card_words, "Wolf_Cub" => [card("Wolf Cub"),0:0; EOF,0:8]);
 
     test!(string, "\"string\"" => [str("string"),0:0; EOF,0:8]);
     test!(string_espace, "\"a\\\"\"" => [str("a\""),0:0; EOF,0:5]);
@@ -511,7 +533,4 @@ mod test {
     should_error!(error_indent_wrong_type, "  1\n\t1" => InconsitentIndent(1, 1));
     should_error!(error_indent_inconsitent, "  1\n   1" => InconsitentIndent(1, 3));
     should_error!(error_indent_first, "  1" => FirstLineIndent);
-
-    test!(space, "   " => []);
-    test!(empty, "" => []);
 }

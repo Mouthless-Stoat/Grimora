@@ -28,17 +28,8 @@ impl Display for Node {
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
-    UnexpectedToken {
-        get: Token,
-        loc: Loc,
-        len: usize,
-    },
-    ExpectToken {
-        get: Token,
-        loc: Loc,
-        want: Vec<Token>,
-        len: usize,
-    },
+    UnexpectedToken(Loc, usize, Token),
+    ExpectToken(Loc, usize, Token, Vec<Token>),
     InvalidEventIden(Loc, usize),
     InvalidEventType(Loc, usize),
 }
@@ -68,12 +59,12 @@ impl Parser {
         let next = self.next_loc();
         match what.iter().any(|tk| next.0 == *tk) {
             true => Ok(next.0),
-            false => Err(ParseError::ExpectToken {
-                len: next.0.get_len(),
-                get: next.0,
-                loc: (next.1 .0, next.1 .1),
-                want: what.to_vec(),
-            }),
+            false => Err(ParseError::ExpectToken(
+                (next.1 .0, next.1 .1),
+                next.0.get_len(),
+                next.0,
+                what.to_vec(),
+            )),
         }
     }
 
@@ -137,12 +128,12 @@ impl Parser {
                 let val = self.parse_expr()?;
                 Ok(Stmt::VarDecl(name, val))
             }
-            (get, loc) => Err(ParseError::ExpectToken {
-                len: get.get_len(),
-                get,
+            (get, loc) => Err(ParseError::ExpectToken(
                 loc,
-                want: vec![Token::Iden("identifier".to_string())],
-            }),
+                get.get_len(),
+                get,
+                vec![Token::Iden("identifier".to_string())],
+            )),
         }
     }
 
@@ -187,22 +178,22 @@ impl Parser {
                         _ => return Err(ParseError::InvalidEventType(loc, it.len())),
                     },
                     (get, loc) => {
-                        return Err(ParseError::ExpectToken {
-                            len: get.get_len(),
-                            get,
+                        return Err(ParseError::ExpectToken(
                             loc,
-                            want: vec![Token::Iden("identifier".to_string())],
-                        })
+                            get.get_len(),
+                            get,
+                            vec![Token::Iden("identifier".to_string())],
+                        ))
                     }
                 };
             }
             (get, loc) => {
-                return Err(ParseError::ExpectToken {
-                    len: get.get_len(),
-                    get,
+                return Err(ParseError::ExpectToken(
                     loc,
-                    want: vec![Token::Iden("identifier".to_string())],
-                })
+                    get.get_len(),
+                    get,
+                    vec![Token::Iden("identifier".to_string())],
+                ))
             }
         }
 
@@ -220,17 +211,12 @@ impl Parser {
     }
 
     fn parse_assign(&mut self) -> Maybe<Node> {
-        let iden = self.parse_unit()?;
+        let iden = self.parse_expr()?;
         if !matches!(self.curr(), Token::Equal) {
             return Ok(Node::Expr(iden));
         }
 
         self.next();
-
-        let iden = match iden {
-            Expr::Iden(name) => name,
-            _ => unreachable!(),
-        };
         let value = self.parse_expr()?;
 
         Ok(Node::Stmt(Stmt::Assign(iden, value)))
@@ -302,6 +288,7 @@ impl Parser {
             Token::Num(num) => Expr::Num(num),
             Token::String(str) => Expr::String(str),
             Token::Iden(name) => Expr::Iden(name),
+            Token::Card(name) => Expr::Card(name),
             Token::ReserveIden(name) => Expr::ReserveIden(name),
             Token::OpenParen => {
                 let t = self.parse_expr()?;
@@ -312,11 +299,11 @@ impl Parser {
                 }
             }
             _ => {
-                return Err(ParseError::UnexpectedToken {
-                    len: curr.0.get_len(),
-                    get: curr.0,
-                    loc: curr.1,
-                });
+                return Err(ParseError::UnexpectedToken(
+                    curr.1,
+                    curr.0.get_len(),
+                    curr.0,
+                ));
             }
         })
     }
@@ -403,25 +390,25 @@ mod test {
         Expr::Bin(Box::new(left), op, Box::new(right))
     }
 
-    fn new_assign(name: &str, value: Expr) -> Stmt {
-        Stmt::Assign(name.to_string(), value)
+    fn new_assign(name: Expr, value: Expr) -> Stmt {
+        Stmt::Assign(name, value)
     }
 
     fn new_paren(expr: Expr) -> Expr {
         Expr::Paren(Box::new(expr))
     }
 
+    fn new_card(name: &str) -> Expr {
+        Expr::Card(name.to_string())
+    }
+
     fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
-        ExpectToken {
-            get,
-            loc,
-            want,
-            len,
-        }
+        ExpectToken(loc, len, get, want)
     }
 
     test!(simple, "1" => expr_ast![new_num(1)]);
     test!(string, "\"a\"" => expr_ast![new_str("a")]);
+    test!(card, "Wolf" => expr_ast![new_card("Wolf")]);
     test!(empty, "" => []);
 
     test!(bin, "1 + 1" => expr_ast![new_num(2)]);
@@ -464,5 +451,5 @@ mod test {
     should_error!(event_invalid_iden, "when what summon: 1" => InvalidEventIden((0, 5), 4));
     should_error!(event_invalid_event, "when this what: 1" => InvalidEventType((0, 10), 4));
 
-    test!(assign, "a = 1" => [StmtN(new_assign("a", new_num(1)))]);
+    test!(assign, "a = 1" => [StmtN(new_assign(new_iden("a"), new_num(1)))]);
 }

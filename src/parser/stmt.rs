@@ -25,7 +25,7 @@ pub enum Stmt {
     If(Expr, Box<Stmt>),
     Block(Vec<Node>),
     Event(EventIden, EventType, Option<Expr>, Box<Stmt>),
-    Assign(String, Expr),
+    Assign(Expr, Expr),
 }
 
 impl Display for Stmt {
