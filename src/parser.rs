@@ -55,15 +55,15 @@ impl Parser {
         !matches!(self.curr(), Token::EOF)
     }
 
-    fn expect(&mut self, what: &[Token]) -> Maybe<Token> {
+    fn expect(&mut self, what: Token) -> Maybe<Token> {
         let next = self.next_loc();
-        match what.iter().any(|tk| next.0 == *tk) {
+        match next.0 == what {
             true => Ok(next.0),
             false => Err(ParseError::ExpectToken(
                 (next.1 .0, next.1 .1),
                 next.0.get_len(),
                 next.0,
-                what.to_vec(),
+                [what].to_vec(),
             )),
         }
     }
@@ -80,18 +80,34 @@ impl Parser {
         self.tokens.pop_front().unwrap()
     }
 
+    fn parse_args(&mut self) -> Maybe<Vec<Expr>> {
+        let mut args = Vec::new();
+        self.expect(Token::OpenParen)?;
+
+        while !matches!(self.curr(), Token::CloseParen) {
+            args.push(self.parse_expr()?);
+            if !matches!(self.curr(), Token::CloseParen) {
+                self.expect(Token::Comma)?;
+            }
+        }
+
+        self.expect(Token::CloseParen)?;
+
+        Ok(args)
+    }
+
     fn parse_block(&mut self) -> Maybe<Box<Stmt>> {
-        self.expect(&[Token::Colon])?;
+        self.expect(Token::Colon)?;
         Ok(match self.curr() {
             Token::EOL => {
                 self.next();
                 let mut body = Vec::new();
-                self.expect(&[Token::IND])?;
+                self.expect(Token::IND)?;
                 while self.not_eof() && !matches!(self.curr(), Token::DED) {
                     body.push(self.parse_stmt()?);
                 }
                 if self.not_eof() {
-                    self.expect(&[Token::DED])?;
+                    self.expect(Token::DED)?;
                 }
                 Box::new(Stmt::Block(body))
             }
@@ -113,7 +129,7 @@ impl Parser {
 
         // if not eof expect a eol
         if !matches!(self.curr(), Token::EOF | Token::DED) {
-            self.expect(&[Token::EOL])?;
+            self.expect(Token::EOL)?;
         }
 
         Ok(stmt)
@@ -124,7 +140,7 @@ impl Parser {
         self.next();
         match self.next_loc() {
             (Token::Iden(name), _) => {
-                self.expect(&[Token::Equal])?;
+                self.expect(Token::Equal)?;
                 let val = self.parse_expr()?;
                 Ok(Stmt::VarDecl(name, val))
             }
@@ -273,12 +289,21 @@ impl Parser {
 
     fn parse_un(&mut self) -> Maybe<Expr> {
         Ok(match self.curr() {
-            Token::Minus => match self.parse_expr()? {
+            Token::Minus => match self.parse_un()? {
                 Expr::Num(num) => Expr::Num(-num),
                 expr => Expr::Un(Token::Minus, Box::new(expr)),
             },
-            _ => self.parse_unit()?,
+            _ => self.parse_call()?,
         })
+    }
+
+    fn parse_call(&mut self) -> Maybe<Expr> {
+        let mut caller = self.parse_unit()?;
+        while matches!(self.curr(), Token::OpenParen) {
+            let args = self.parse_args()?;
+            caller = Expr::Call(Box::new(caller), args);
+        }
+        Ok(caller)
     }
 
     /// Parse a unit or literal
@@ -292,7 +317,7 @@ impl Parser {
             Token::ReserveIden(name) => Expr::ReserveIden(name),
             Token::OpenParen => {
                 let t = self.parse_expr()?;
-                self.expect(&[Token::CloseParen])?;
+                self.expect(Token::CloseParen)?;
                 match t {
                     Expr::Num(_) | Expr::Iden(_) | Expr::ReserveIden(_) => t,
                     _ => Expr::Paren(Box::new(t)),
@@ -402,6 +427,10 @@ mod test {
         Expr::Card(name.to_string())
     }
 
+    fn new_call(caller: Expr, args: &[Expr]) -> Expr {
+        Expr::Call(Box::new(caller), args.to_vec())
+    }
+
     fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
         ExpectToken(loc, len, get, want)
     }
@@ -452,4 +481,9 @@ mod test {
     should_error!(event_invalid_event, "when this what: 1" => InvalidEventType((0, 10), 4));
 
     test!(assign, "a = 1" => [StmtN(new_assign(new_iden("a"), new_num(1)))]);
+
+    test!(call, "a()" => [ExprN(new_call(new_iden("a"), &[]))]);
+    test!(call_arg, "a(1)" => [ExprN(new_call(new_iden("a"), &[new_num(1)]))]);
+    test!(call_args, "a(1, 2, 3, 4)" => [ExprN(new_call(new_iden("a"), &[new_num(1), new_num(2), new_num(3), new_num(4)]))]);
+    test!(call_chain, "a()()" => [ExprN(new_call(new_call(new_iden("a"), &[]), &[]))]);
 }

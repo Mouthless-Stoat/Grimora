@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::lexer::{Iden, Token};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Num(f32),
     String(String),
@@ -12,6 +12,7 @@ pub enum Expr {
     Bin(Box<Expr>, Token, Box<Expr>),
     ReserveIden(Iden),
     Paren(Box<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
 }
 
 impl Display for Expr {
@@ -25,6 +26,14 @@ impl Display for Expr {
             Expr::Bin(left, op, right) => write!(f, "{left} {op} {right}",),
             Expr::ReserveIden(iden) => write!(f, "{iden}"),
             Expr::Un(op, expr) => write!(f, "{op}{expr}"),
+            Expr::Call(caller, args) => write!(
+                f,
+                "{caller}({})",
+                args.iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
         }
     }
 }

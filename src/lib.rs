@@ -61,11 +61,8 @@ impl Display for TranspileError {
                     snippet = snippet(source, (*line, 0))
 
                 ),
-                LexError::UnterminatedString(line) => write!(
-                    f,
-                    "\x1b[1;31mError\x1b[0m: Unterminated string on line {line}"
-                ),
-                LexError::InvalidEscape(line, char) => write!(f, "\x1b[1;31mError\x1b[0m: Invalid escape character '{char}' on line {line}")
+                LexError::UnterminatedString(line) => write!( f, "\x1b[1;31mError\x1b[0m: Unterminated string on line {line}", line = line + 1),
+                LexError::InvalidEscape(line, char) => write!(f, "\x1b[1;31mError\x1b[0m: Invalid escape character '{char}' on line {line}", line = line + 1)
             },
             TranspileError::ParseError { source, err } => match err {
                 ParseError::UnexpectedToken(loc, len, get)=> {
@@ -81,7 +78,7 @@ impl Display for TranspileError {
                     f,
                     "\x1b[1;31mError\x1b[0m: Expect {}, found `{get}` at {line}:{col}\n{snippet}",
                     if want.len() == 1 {
-                        format!("`{}`", want[0].to_string())
+                        format!("`{}`", want[0])
                     } else {
                         format!(
                             "one of {}",

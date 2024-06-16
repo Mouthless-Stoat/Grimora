@@ -7,7 +7,7 @@
 [ ] Function
 [ ] Ternary If
 [ ] Elif and Else
-[ ] Card Contructor
+[X] Card Contructor
 [ ] Draw Stmt
 [ ] Augmented Assignment
 [X] Assignment

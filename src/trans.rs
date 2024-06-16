@@ -71,4 +71,10 @@ mod test {
     test!(event, "when summon: 1" => "if event == \"card_summoned\" and params[0] == card:\n\t1");
 
     test!(assign, "a = 1" => "a_0 = 1");
+
+    test!(call, "a()" => "a()");
+    test!(call_arg, "a(1)" => "a(1)");
+    test!(call_args, "a(1, 2)" => "a(1, 2)");
+    test!(call_chain, "a()()" => "a()()");
+    test!(call_chain_args, "a(1, 2)(1, 2)" => "a(1, 2)(1, 2)");
 }

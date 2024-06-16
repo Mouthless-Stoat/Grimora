@@ -12,5 +12,5 @@ when this summon:
 
 # Note
 
-1. Incomplete expression may span over multiple line
+1. Incomplete expression may span over multiple line with \
 2. statement must end in new line

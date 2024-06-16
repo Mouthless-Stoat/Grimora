@@ -51,6 +51,7 @@ pub enum Token {
     Colon,
     Dot,
     Question,
+    Comma,
 
     // multi char
     Arrow,
@@ -97,6 +98,7 @@ impl Display for Token {
                 Token::Percent => "%",
                 Token::Colon => ":",
                 Token::Question => "?",
+                Token::Comma => ",",
 
                 Token::Arrow => "=>",
 
@@ -305,7 +307,8 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 '<' => Token::Lesser,
                 '(' => Token::OpenParen,
                 ')' => Token::CloseParen,
-                '.' => Token::Dot
+                '.' => Token::Dot,
+                ',' => Token::Comma
             );
 
             // if it not a special character then it have to be number or alpha
