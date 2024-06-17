@@ -3,8 +3,8 @@
 ```
 [X] Unary Expression
 [ ] List
-[ ] Subscription
-[ ] Dot access
+[X] Subscription
+[X] Dot access
 [ ] Function
 [ ] Ternary If
 [ ] Elif and Else
