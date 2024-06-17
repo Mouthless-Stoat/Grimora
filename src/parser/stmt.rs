@@ -4,14 +4,14 @@ use super::expr::Expr;
 use super::Node;
 use crate::trans::TABCHAR;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum EventIden {
     This,
     Other,
     Any,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum EventType {
     Die,
     Hit,
@@ -19,10 +19,10 @@ pub enum EventType {
     Move,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
     VarDecl(String, Expr),
-    If(Expr, Box<Stmt>),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Block(Vec<Node>),
     Event(EventIden, EventType, Option<Expr>, Box<Stmt>),
     Assign(Expr, Expr),
@@ -32,8 +32,19 @@ impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Stmt::VarDecl(name, val) => write!(f, "var {name}_0 = {val}"),
-            Stmt::If(cond, body) => {
-                write!(f, "if {cond}:\n{body}",)
+            Stmt::If(cond, body, other) => {
+                write!(
+                    f,
+                    "if {cond}:\n{body}{}",
+                    match other {
+                        Some(block) => match **block {
+                            Stmt::If(_, _, _) => format!("el{block}"),
+                            Stmt::Block(_) => format!("else:\n{block}"),
+                            _ => unreachable!(),
+                        },
+                        None => "".to_string(),
+                    }
+                )
             }
             Stmt::Block(nodes) => write!(
                 f,
@@ -66,7 +77,7 @@ impl Display for Stmt {
                     None => "".to_string(),
                 }
             ),
-            Stmt::Assign(iden, value) => write!(f, "{iden}_0 = {value}"),
+            Stmt::Assign(iden, value) => write!(f, "{iden} = {value}"),
         }
     }
 }

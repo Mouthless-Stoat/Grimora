@@ -65,8 +65,12 @@ mod test {
 
     test!(if_stmt, "if 1 + 1:\n\thello" => "if 2:\n\thello");
     test!(if_stmt_single, "if true: hello" => "if true:\n\thello");
-
+    test!(if_stmt_else, "if 1:\n\t1\nelse:\n\t1" => "if 1:\n\t1\nelse:\n\t1");
     test!(if_stmt_nest, "if true: if true: hello" => "if true:\n\tif true:\n\t\thello");
+    test!(if_stmt_elif, "if 1:\n\t1\nelif 1:\n\t1" => "if 1:\n\t1\nelif 1:\n\t1");
+    test!(if_stmt_elif_else, "if 1:\n\t1\nelif 1:\n\t1\nelse:\n\t1" => "if 1:\n\t1\nelif 1:\n\t1\nelse:\n\t1");
+    test!(if_stmt_elif_chain, "if 1:\n\t1\nelif 1:\n\t1\nelif 1:\n\t1" => "if 1:\n\t1\nelif 1:\n\t1\nelif 1:\n\t1");
+    test!(if_stmt_elif_chain_else, "if 1:\n\t1\nelif 1:\n\t1\nelif 1:\n\t1\nelse:\n\t1" => "if 1:\n\t1\nelif 1:\n\t1\nelif 1:\n\t1\nelse:\n\t1");
 
     test!(event, "when summon: 1" => "if event == \"card_summoned\" and params[0] == card:\n\t1");
 

@@ -10,7 +10,7 @@ use crate::lexer::{Loc, Token, TokenLoc};
 
 use self::stmt::{EventIden, EventType};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     Expr(Expr),
     Stmt(Stmt),
@@ -52,7 +52,7 @@ impl Parser {
     }
 
     fn not_eof(&self) -> bool {
-        !matches!(self.curr(), Token::EOF)
+        !self.if_curr(Token::EOF)
     }
 
     fn expect(&mut self, what: Token) -> Maybe<Token> {
@@ -72,12 +72,32 @@ impl Parser {
         &self.tokens.get(0).unwrap().0
     }
 
+    fn peek(&self) -> &Token {
+        &self.tokens.get(1).unwrap_or(&(Token::EOF, (0, 0))).0
+    }
+
     fn next(&mut self) -> Token {
         self.tokens.pop_front().unwrap().0
     }
 
     fn next_loc(&mut self) -> TokenLoc {
         self.tokens.pop_front().unwrap()
+    }
+
+    fn if_curr(&self, tk: Token) -> bool {
+        *self.curr() == tk
+    }
+
+    fn if_currs(&self, tks: &[Token]) -> bool {
+        tks.iter().any(|tk| *self.curr() == *tk)
+    }
+
+    fn if_peek(&self, tk: Token) -> bool {
+        *self.peek() == tk
+    }
+
+    fn if_peeks(&self, tks: &[Token]) -> bool {
+        tks.iter().any(|tk| *self.peek() == *tk)
     }
 
     fn parse_args(&mut self) -> Maybe<Vec<Expr>> {
@@ -103,7 +123,7 @@ impl Parser {
                 self.next();
                 let mut body = Vec::new();
                 self.expect(Token::IND)?;
-                while self.not_eof() && !matches!(self.curr(), Token::DED) {
+                while self.not_eof() && !self.if_curr(Token::DED) {
                     body.push(self.parse_stmt()?);
                 }
                 if self.not_eof() {
@@ -159,7 +179,18 @@ impl Parser {
         let cond = self.parse_expr()?;
         let body = self.parse_block()?;
 
-        Ok(Stmt::If(cond, body))
+        match self.peek() {
+            Token::Elif => Ok(Stmt::If(cond, body, {
+                self.next();
+                Some(Box::new(self.parse_if()?))
+            })),
+            Token::Else => Ok(Stmt::If(cond, body, {
+                self.next();
+                self.next();
+                Some(self.parse_block()?)
+            })),
+            _ => Ok(Stmt::If(cond, body, None)),
+        }
     }
 
     fn parse_event(&mut self) -> Maybe<Stmt> {
@@ -228,40 +259,95 @@ impl Parser {
 
     fn parse_assign(&mut self) -> Maybe<Node> {
         let iden = self.parse_expr()?;
-        if !matches!(self.curr(), Token::Equal) {
+        if !((self.if_currs(&[Token::Plus, Token::Minus, Token::Star, Token::Slash])
+            && self.if_peek(Token::Equal))
+            || self.if_curr(Token::Equal))
+        {
             return Ok(Node::Expr(iden));
         }
 
+        let mut op = None;
+        if !self.if_curr(Token::Equal) {
+            op = Some(self.next());
+        }
         self.next();
-        let value = self.parse_expr()?;
+
+        let mut value = self.parse_expr()?;
+
+        if let Some(op) = op {
+            value = Expr::Bin(Box::new(iden.clone()), op, Box::new(value))
+        }
 
         Ok(Node::Stmt(Stmt::Assign(iden, value)))
     }
 
     // EXPR PARSE
     fn parse_expr(&mut self) -> Maybe<Expr> {
-        Ok(match self.parse_add_bin()? {
+        Ok(match self.parse_logic_bin()? {
             Expr::Paren(expr) => *expr,
             expr => expr,
         })
     }
 
+    fn parse_logic_bin(&mut self) -> Maybe<Expr> {
+        let mut left = self.parse_comp_bin()?;
+        while matches!(self.curr(), Token::And | Token::Or) && !self.if_peek(Token::Equal) {
+            let op = self.next();
+            let right = self.parse_comp_bin()?;
+
+            // constant collapsing time
+            left = match (&left, &right) {
+                (Expr::Bool(l), Expr::Bool(r)) => Expr::Bool(match op {
+                    Token::And => *l && *r,
+                    Token::Or => *l || *r,
+                    _ => unreachable!(),
+                }),
+                _ => Expr::Bin(Box::new(left), op, Box::new(right)),
+            };
+        }
+        return Ok(left);
+    }
+
+    fn parse_comp_bin(&mut self) -> Maybe<Expr> {
+        let mut left = self.parse_add_bin()?;
+        while matches!(
+            self.curr(),
+            Token::Greater | Token::GreaterEq | Token::Lesser | Token::LesserEq | Token::Equality
+        ) && !self.if_peek(Token::Equal)
+        {
+            let op = self.next();
+            let right = self.parse_add_bin()?;
+
+            // constant collapsing time
+            left = match (&left, &right) {
+                (Expr::Num(l), Expr::Num(r)) => Expr::Bool(match op {
+                    Token::Lesser => l < r,
+                    Token::LesserEq => l <= r,
+                    Token::Greater => l > r,
+                    Token::GreaterEq => l >= r,
+                    _ => unreachable!(),
+                }),
+                _ => Expr::Bin(Box::new(left), op, Box::new(right)),
+            }
+        }
+        return Ok(left);
+    }
+
     /// Parse add/sub binary expression
     fn parse_add_bin(&mut self) -> Maybe<Expr> {
         let mut left = self.parse_mul_bin()?;
-        while matches!(self.curr(), Token::Plus | Token::Minus) {
+        while matches!(self.curr(), Token::Plus | Token::Minus) && !self.if_peek(Token::Equal) {
             let op = self.next();
             let right = self.parse_mul_bin()?;
 
             // constant collapsing time
-            if let (Expr::Num(l), Expr::Num(r)) = (&left, &right) {
-                left = Expr::Num(match op {
+            left = match (&left, &right) {
+                (Expr::Num(l), Expr::Num(r)) => Expr::Num(match op {
                     Token::Plus => l + r,
                     Token::Minus => l - r,
                     _ => unreachable!(),
-                })
-            } else {
-                left = Expr::Bin(Box::new(left), op, Box::new(right));
+                }),
+                _ => Expr::Bin(Box::new(left), op, Box::new(right)),
             };
         }
         return Ok(left);
@@ -270,18 +356,17 @@ impl Parser {
     /// Parse mul/div binary expression
     fn parse_mul_bin(&mut self) -> Maybe<Expr> {
         let mut left = self.parse_un()?;
-        while matches!(self.curr(), Token::Star | Token::Slash) {
+        while matches!(self.curr(), Token::Star | Token::Slash) && !self.if_peek(Token::Equal) {
             let op = self.next();
             let right = self.parse_un()?;
 
-            if let (Expr::Num(l), Expr::Num(r)) = (&left, &right) {
-                left = Expr::Num(match op {
+            left = match (&left, &right) {
+                (Expr::Num(l), Expr::Num(r)) => Expr::Num(match op {
                     Token::Star => l * r,
                     Token::Slash => l / r,
                     _ => unreachable!(),
-                })
-            } else {
-                left = Expr::Bin(Box::new(left), op, Box::new(right));
+                }),
+                _ => Expr::Bin(Box::new(left), op, Box::new(right)),
             };
         }
         return Ok(left);
@@ -299,7 +384,7 @@ impl Parser {
 
     fn parse_call(&mut self) -> Maybe<Expr> {
         let mut caller = self.parse_unit()?;
-        while matches!(self.curr(), Token::OpenParen) {
+        while self.if_curr(Token::OpenParen) {
             let args = self.parse_args()?;
             caller = Expr::Call(Box::new(caller), args);
         }
@@ -314,6 +399,7 @@ impl Parser {
             Token::String(str) => Expr::String(str),
             Token::Iden(name) => Expr::Iden(name),
             Token::Card(name) => Expr::Card(name),
+            Token::Bool(bool) => Expr::Bool(bool),
             Token::ReserveIden(name) => Expr::ReserveIden(name),
             Token::OpenParen => {
                 let t = self.parse_expr()?;
@@ -336,7 +422,7 @@ impl Parser {
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::{lex, Iden, Loc, Token};
+    use crate::lexer::{lex, Loc, Token};
     use crate::parser::{
         stmt::{EventIden::*, EventType::*},
         EventIden, EventType, Expr,
@@ -345,6 +431,8 @@ mod test {
         ParseError::*,
         Parser, Stmt,
     };
+
+    use super::Node;
 
     // Helper to make typing ast less annoying
     macro_rules! expr_ast {
@@ -403,8 +491,24 @@ mod test {
         Expr::String(value.to_string())
     }
 
+    fn new_block(block: &[Node]) -> Stmt {
+        Stmt::Block(block.to_vec())
+    }
+
     fn new_if_stmt(cond: Expr, body: Stmt) -> Stmt {
-        Stmt::If(cond, Box::new(body))
+        Stmt::If(cond, Box::new(body), None)
+    }
+
+    fn new_if_else_stmt(cond: Expr, body: Stmt, else_body: Stmt) -> Stmt {
+        Stmt::If(cond, Box::new(body), Some(Box::new(else_body)))
+    }
+
+    fn new_if_elif_stmt(cond: Expr, body: Stmt, elif_cond: Expr, elif_body: Stmt) -> Stmt {
+        Stmt::If(
+            cond,
+            Box::new(body),
+            Some(Box::new(new_if_stmt(elif_cond, elif_body))),
+        )
     }
 
     fn new_event(iden: EventIden, event: EventType, expr: Option<Expr>, body: Stmt) -> Stmt {
@@ -456,12 +560,12 @@ mod test {
     test!(if_stmt_nest, "if true: if true: hello" => [
         StmtN(
             new_if_stmt(
-                Expr::ReserveIden(Iden::True),
+                Expr::Bool(true),
                 Stmt::Block(
                     vec![
                         StmtN(
                             new_if_stmt(
-                                Expr::ReserveIden(Iden::True),
+                                Expr::Bool(true),
                                 Stmt::Block(vec![ExprN(new_iden("hello"))])
                             )
                         )
@@ -470,12 +574,14 @@ mod test {
             )
         )
     ]);
+    test!(if_stmt_else, "if 1:\n\t1\nelse:\n\t1" => [StmtN(new_if_else_stmt(new_num(1), new_block(&[ExprN(new_num(1))]), new_block(&[ExprN(new_num(1))])))]);
+    test!(if_stmt_elif, "if 1:\n\t1\nelif 1:\n\t1" => [StmtN(new_if_elif_stmt(new_num(1), new_block(&[ExprN(new_num(1))]), new_num(1), new_block(&[ExprN(new_num(1))])))]);
 
     test!(event, "when summon: 1" => [StmtN(new_event(This, Summon, None, Stmt::Block(vec![ExprN(new_num(1))])))]);
     test!(event_explicit, "when this summon: 1" => [StmtN(new_event(This, Summon, None, Stmt::Block(vec![ExprN(new_num(1))])))]);
     test!(event_other_iden, "when other summon: 1" => [StmtN(new_event(Other, Summon, None, Stmt::Block(vec![ExprN(new_num(1))])))]);
-    test!(event_condition, "when summon and true: 1" => [StmtN(new_event(This, Summon, Some(Expr::ReserveIden(Iden::True)), Stmt::Block(vec![ExprN(new_num(1))])))]);
-    test!(event_other_iden_condition, "when other summon and true: 1" => [StmtN(new_event(Other, Summon, Some(Expr::ReserveIden(Iden::True)), Stmt::Block(vec![ExprN(new_num(1))])))]);
+    test!(event_condition, "when summon and true: 1" => [StmtN(new_event(This, Summon, Some(Expr::Bool(true)), Stmt::Block(vec![ExprN(new_num(1))])))]);
+    test!(event_other_iden_condition, "when other summon and true: 1" => [StmtN(new_event(Other, Summon, Some(Expr::Bool(true)), Stmt::Block(vec![ExprN(new_num(1))])))]);
 
     should_error!(event_invalid_iden, "when what summon: 1" => InvalidEventIden((0, 5), 4));
     should_error!(event_invalid_event, "when this what: 1" => InvalidEventType((0, 10), 4));

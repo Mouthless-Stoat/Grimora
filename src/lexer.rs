@@ -8,8 +8,6 @@ pub enum Iden {
     Friendly,
     Fight,
     Slots,
-    True,
-    False,
 }
 
 impl Display for Iden {
@@ -22,8 +20,6 @@ impl Display for Iden {
                 Iden::Friendly => "isFriendly",
                 Iden::Fight => "fightManager",
                 Iden::Slots => "slotManager",
-                Iden::True => "true",
-                Iden::False => "false",
             }
         )
     }
@@ -36,6 +32,7 @@ pub enum Token {
     Iden(String),
     String(String),
     ReserveIden(Iden),
+    Bool(bool),
     Card(String),
 
     OpenParen,
@@ -65,6 +62,8 @@ pub enum Token {
     // keyword
     Var,
     If,
+    Elif,
+    Else,
     When,
 
     And,
@@ -355,6 +354,8 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                         }
                         "var" => Token::Var,
                         "if" => Token::If,
+                        "elif" => Token::Elif,
+                        "else" => Token::Else,
                         "when" => Token::When,
 
                         "and" => Token::And,
@@ -365,8 +366,8 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                         "friendly" => Token::ReserveIden(Iden::Friendly),
                         "fight" => Token::ReserveIden(Iden::Fight),
                         "slots" => Token::ReserveIden(Iden::Slots),
-                        "true" => Token::ReserveIden(Iden::True),
-                        "false" => Token::ReserveIden(Iden::False),
+                        "true" => Token::Bool(true),
+                        "false" => Token::Bool(false),
 
                         _ => Token::Iden(acc),
                     },
