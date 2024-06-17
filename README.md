@@ -4,6 +4,7 @@
 [X] Unary Expression
 [ ] List
 [ ] Subscription
+[ ] Dot access
 [ ] Function
 [ ] Ternary If
 [ ] Elif and Else
