@@ -61,7 +61,7 @@ mod test {
 
     test!(indent_multi_dedent, "if true:\n\tif true:\n\t\thello\nhello" => "if true:\n\tif true:\n\t\thello\nhello");
 
-    test!(var, "var a = 10" => "var a_0 = 10");
+    test!(var, "var a = 10" => "var a = 10");
 
     test!(if_stmt, "if 1 + 1:\n\thello" => "if 2:\n\thello");
     test!(if_stmt_single, "if true: hello" => "if true:\n\thello");
@@ -74,7 +74,7 @@ mod test {
 
     test!(event, "when summon: 1" => "if event == \"card_summoned\" and params[0] == card:\n\t1");
 
-    test!(assign, "a = 1" => "a_0 = 1");
+    test!(assign, "a = 1" => "a = 1");
 
     test!(call, "a()" => "a()");
     test!(call_arg, "a(1)" => "a(1)");

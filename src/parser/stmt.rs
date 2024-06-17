@@ -21,17 +21,32 @@ pub enum EventType {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
-    VarDecl(String, Expr),
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Block(Vec<Node>),
-    Event(EventIden, EventType, Option<Expr>, Box<Stmt>),
+
+    VarDecl(String, Expr),
     Assign(Expr, Expr),
+
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    Event(EventIden, EventType, Option<Expr>, Box<Stmt>),
 }
 
 impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Stmt::VarDecl(name, val) => write!(f, "var {name}_0 = {val}"),
+            Stmt::Block(nodes) => write!(
+                f,
+                "{}",
+                nodes
+                    .iter()
+                    .map(|n| n
+                        .to_string()
+                        .lines()
+                        .map(|l| format!("{TABCHAR}{l}\n"))
+                        .collect::<String>())
+                    .collect::<String>()
+            ),
+            Stmt::VarDecl(name, val) => write!(f, "var {name} = {val}"),
+            Stmt::Assign(iden, value) => write!(f, "{iden} = {value}"),
             Stmt::If(cond, body, other) => {
                 write!(
                     f,
@@ -46,18 +61,6 @@ impl Display for Stmt {
                     }
                 )
             }
-            Stmt::Block(nodes) => write!(
-                f,
-                "{}",
-                nodes
-                    .iter()
-                    .map(|n| n
-                        .to_string()
-                        .lines()
-                        .map(|l| format!("{TABCHAR}{l}\n"))
-                        .collect::<String>())
-                    .collect::<String>()
-            ),
             Stmt::Event(iden, event, cond, body) => write!(
                 f,
                 "if event == {event:?}{what}{cond}:\n{body}",
@@ -77,7 +80,6 @@ impl Display for Stmt {
                     None => "".to_string(),
                 }
             ),
-            Stmt::Assign(iden, value) => write!(f, "{iden} = {value}"),
         }
     }
 }

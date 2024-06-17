@@ -32,6 +32,7 @@ pub enum ParseError {
     ExpectToken(Loc, usize, Token, Vec<Token>),
     InvalidEventIden(Loc, usize),
     InvalidEventType(Loc, usize),
+    AttrIden(Loc, usize, Expr, Expr),
 }
 
 pub struct Parser {
@@ -52,7 +53,7 @@ impl Parser {
     }
 
     fn not_eof(&self) -> bool {
-        !self.if_curr(Token::EOF)
+        !self.is_curr(Token::EOF)
     }
 
     fn expect(&mut self, what: Token) -> Maybe<Token> {
@@ -72,6 +73,10 @@ impl Parser {
         &self.tokens.get(0).unwrap().0
     }
 
+    fn curr_loc(&self) -> &TokenLoc {
+        &self.tokens.get(0).unwrap()
+    }
+
     fn peek(&self) -> &Token {
         &self.tokens.get(1).unwrap_or(&(Token::EOF, (0, 0))).0
     }
@@ -84,19 +89,20 @@ impl Parser {
         self.tokens.pop_front().unwrap()
     }
 
-    fn if_curr(&self, tk: Token) -> bool {
+    fn is_curr(&self, tk: Token) -> bool {
         *self.curr() == tk
     }
 
-    fn if_currs(&self, tks: &[Token]) -> bool {
+    fn is_currs(&self, tks: &[Token]) -> bool {
         tks.iter().any(|tk| *self.curr() == *tk)
     }
 
-    fn if_peek(&self, tk: Token) -> bool {
+    fn is_peek(&self, tk: Token) -> bool {
         *self.peek() == tk
     }
 
-    fn if_peeks(&self, tks: &[Token]) -> bool {
+    #[allow(dead_code)]
+    fn is_peeks(&self, tks: &[Token]) -> bool {
         tks.iter().any(|tk| *self.peek() == *tk)
     }
 
@@ -123,7 +129,7 @@ impl Parser {
                 self.next();
                 let mut body = Vec::new();
                 self.expect(Token::IND)?;
-                while self.not_eof() && !self.if_curr(Token::DED) {
+                while self.not_eof() && !self.is_curr(Token::DED) {
                     body.push(self.parse_stmt()?);
                 }
                 if self.not_eof() {
@@ -155,7 +161,8 @@ impl Parser {
         Ok(stmt)
     }
 
-    // STMT PARSE
+    //== STMT PARSE ==//
+
     fn parse_var_decl(&mut self) -> Maybe<Stmt> {
         self.next();
         match self.next_loc() {
@@ -259,15 +266,15 @@ impl Parser {
 
     fn parse_assign(&mut self) -> Maybe<Node> {
         let iden = self.parse_expr()?;
-        if !((self.if_currs(&[Token::Plus, Token::Minus, Token::Star, Token::Slash])
-            && self.if_peek(Token::Equal))
-            || self.if_curr(Token::Equal))
+        if !((self.is_currs(&[Token::Plus, Token::Minus, Token::Star, Token::Slash])
+            && self.is_peek(Token::Equal))
+            || self.is_curr(Token::Equal))
         {
             return Ok(Node::Expr(iden));
         }
 
         let mut op = None;
-        if !self.if_curr(Token::Equal) {
+        if !self.is_curr(Token::Equal) {
             op = Some(self.next());
         }
         self.next();
@@ -281,7 +288,8 @@ impl Parser {
         Ok(Node::Stmt(Stmt::Assign(iden, value)))
     }
 
-    // EXPR PARSE
+    //== EXPR PARSE ==//
+
     fn parse_expr(&mut self) -> Maybe<Expr> {
         Ok(match self.parse_logic_bin()? {
             Expr::Paren(expr) => *expr,
@@ -291,7 +299,7 @@ impl Parser {
 
     fn parse_logic_bin(&mut self) -> Maybe<Expr> {
         let mut left = self.parse_comp_bin()?;
-        while matches!(self.curr(), Token::And | Token::Or) && !self.if_peek(Token::Equal) {
+        while matches!(self.curr(), Token::And | Token::Or) && !self.is_peek(Token::Equal) {
             let op = self.next();
             let right = self.parse_comp_bin()?;
 
@@ -313,7 +321,7 @@ impl Parser {
         while matches!(
             self.curr(),
             Token::Greater | Token::GreaterEq | Token::Lesser | Token::LesserEq | Token::Equality
-        ) && !self.if_peek(Token::Equal)
+        ) && !self.is_peek(Token::Equal)
         {
             let op = self.next();
             let right = self.parse_add_bin()?;
@@ -336,7 +344,7 @@ impl Parser {
     /// Parse add/sub binary expression
     fn parse_add_bin(&mut self) -> Maybe<Expr> {
         let mut left = self.parse_mul_bin()?;
-        while matches!(self.curr(), Token::Plus | Token::Minus) && !self.if_peek(Token::Equal) {
+        while matches!(self.curr(), Token::Plus | Token::Minus) && !self.is_peek(Token::Equal) {
             let op = self.next();
             let right = self.parse_mul_bin()?;
 
@@ -356,7 +364,7 @@ impl Parser {
     /// Parse mul/div binary expression
     fn parse_mul_bin(&mut self) -> Maybe<Expr> {
         let mut left = self.parse_un()?;
-        while matches!(self.curr(), Token::Star | Token::Slash) && !self.if_peek(Token::Equal) {
+        while matches!(self.curr(), Token::Star | Token::Slash) && !self.is_peek(Token::Equal) {
             let op = self.next();
             let right = self.parse_un()?;
 
@@ -383,12 +391,44 @@ impl Parser {
     }
 
     fn parse_call(&mut self) -> Maybe<Expr> {
-        let mut caller = self.parse_unit()?;
-        while self.if_curr(Token::OpenParen) {
+        let mut caller = self.parse_attr()?;
+        while self.is_curr(Token::OpenParen) {
             let args = self.parse_args()?;
             caller = Expr::Call(Box::new(caller), args);
         }
         Ok(caller)
+    }
+
+    fn parse_attr(&mut self) -> Maybe<Expr> {
+        let start = self.curr_loc().1;
+        let mut expr = self.parse_sub()?;
+        while self.is_curr(Token::Dot) {
+            self.next();
+            let attr = self.parse_unit()?;
+            if !matches!(attr, Expr::Iden(_)) {
+                return Err(ParseError::AttrIden(
+                    start,
+                    format!("{expr}.{attr}").len(),
+                    expr,
+                    attr,
+                ));
+            }
+            expr = Expr::Attr(Box::new(expr), Box::new(attr));
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_sub(&mut self) -> Maybe<Expr> {
+        let mut expr = self.parse_unit()?;
+        while self.is_curr(Token::OpenBracket) {
+            self.next();
+            let index = self.parse_expr()?;
+            self.expect(Token::CloseBracket)?;
+
+            expr = Expr::Sub(Box::new(expr), Box::new(index))
+        }
+        Ok(expr)
     }
 
     /// Parse a unit or literal
@@ -400,12 +440,12 @@ impl Parser {
             Token::Iden(name) => Expr::Iden(name),
             Token::Card(name) => Expr::Card(name),
             Token::Bool(bool) => Expr::Bool(bool),
-            Token::ReserveIden(name) => Expr::ReserveIden(name),
+            Token::ResIden(name) => Expr::ResIden(name),
             Token::OpenParen => {
                 let t = self.parse_expr()?;
                 self.expect(Token::CloseParen)?;
                 match t {
-                    Expr::Num(_) | Expr::Iden(_) | Expr::ReserveIden(_) => t,
+                    Expr::Num(_) | Expr::Iden(_) | Expr::ResIden(_) => t,
                     _ => Expr::Paren(Box::new(t)),
                 }
             }
@@ -535,6 +575,14 @@ mod test {
         Expr::Call(Box::new(caller), args.to_vec())
     }
 
+    fn new_attr(expr: Expr, attr: Expr) -> Expr {
+        Expr::Attr(Box::new(expr), Box::new(attr))
+    }
+
+    fn new_sub(expr: Expr, index: Expr) -> Expr {
+        Expr::Sub(Box::new(expr), Box::new(index))
+    }
+
     fn expect(get: Token, loc: Loc, want: Vec<Token>, len: usize) -> ParseError {
         ExpectToken(loc, len, get, want)
     }
@@ -592,4 +640,13 @@ mod test {
     test!(call_arg, "a(1)" => [ExprN(new_call(new_iden("a"), &[new_num(1)]))]);
     test!(call_args, "a(1, 2, 3, 4)" => [ExprN(new_call(new_iden("a"), &[new_num(1), new_num(2), new_num(3), new_num(4)]))]);
     test!(call_chain, "a()()" => [ExprN(new_call(new_call(new_iden("a"), &[]), &[]))]);
+
+    test!(attr, "a.b" => [ExprN(new_attr(new_iden("a"), new_iden("b")))]);
+    test!(attr_chain, "a.b.c" => [ExprN(new_attr(new_attr(new_iden("a"), new_iden("b")), new_iden("c")))]);
+    test!(attr_call, "a.b()" => [ExprN(new_call(new_attr(new_iden("a"), new_iden("b")), &[]))]);
+
+    test!(sub, "a[1]" => [ExprN(new_sub(new_iden("a"), new_num(1)))]);
+    test!(sub_chain, "a[1][2]" => [ExprN(new_sub(new_sub(new_iden("a"), new_num(1)), new_num(2)))]);
+    test!(sub_call, "a[1]()" => [ExprN(new_call(new_sub(new_iden("a"), new_num(1)), &[]))]);
+    test!(sub_attr, "a[1].a" => [ExprN(new_attr(new_sub(new_iden("a"), new_num(1)), new_iden("a")))]);
 }

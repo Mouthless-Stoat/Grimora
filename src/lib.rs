@@ -12,16 +12,16 @@ use self::parser::{ParseError, Parser};
 use self::trans::trans;
 
 fn snippet(source: &String, loc: (usize, usize)) -> String {
-    long_snippet(source, loc, 1)
+    long_snippet(source, loc, 1, None)
 }
 
-fn long_snippet(source: &String, loc: (usize, usize), len: usize) -> String {
+fn long_snippet(source: &String, loc: (usize, usize), len: usize, prefix: Option<&str>) -> String {
     format!(
         "{line} | {content}\n{loc}",
         line = loc.0 + 1,
         content = source.lines().collect::<Vec<&str>>()[loc.0],
         loc = " ".repeat((loc.0 + 1).checked_ilog10().unwrap_or(0) as usize + loc.1 + 4)
-            + "\x1b[1;31m"
+            + prefix.unwrap_or("\x1b[1;31m")
             + &"─".repeat(len)
             + "\x1b[0m"
     )
@@ -47,7 +47,7 @@ impl Display for TranspileError {
                     f,
                     "\x1b[1;31mError\x1b[0m: Inconsitent identation on line {line}\n{snippet}",
                     line = line + 1,
-                    snippet = long_snippet(source, (*line, 0), *len)
+                    snippet = long_snippet(source, (*line, 0), *len, None)
                 ),
                 LexError::FirstLineIndent => write!(
                     f,
@@ -71,7 +71,7 @@ impl Display for TranspileError {
                         "\x1b[1;31mError\x1b[0m: Unexpected Token `{get}` at {line}:{col}\n{snippet}",
                         line = loc.0 + 1,
                         col = loc.1 + 1,
-                        snippet = long_snippet(source, *loc, *len)
+                        snippet = long_snippet(source, *loc, *len, None)
                     )
                 }
                 ParseError::ExpectToken(loc, len, get, want) => write!(
@@ -90,21 +90,27 @@ impl Display for TranspileError {
                     },
                     line = loc.0 + 1,
                     col = loc.1 + 1,
-                    snippet = long_snippet(source, *loc, *len)
+                    snippet = long_snippet(source, *loc, *len, None)
                 ),
                 ParseError::InvalidEventIden(loc, len) => write!(
                     f,
                     "\x1b[1;31mError\x1b[0m: Invalid event target at {line}:{col}\n{snippet}",
                     line = loc.0 + 1,
                     col = loc.1 + 1,
-                    snippet = long_snippet(source, *loc, *len)
+                    snippet = long_snippet(source, *loc, *len, None)
                 ),
                 ParseError::InvalidEventType(loc, len) => write!(
                     f,
                     "\x1b[1;31mError\x1b[0m: Invalid event type at {line}:{col}\n{snippet}",
                     line = loc.0 + 1,
                     col = loc.1 + 1,
-                    snippet = long_snippet(source, *loc, *len)
+                    snippet = long_snippet(source, *loc, *len, None)
+                ),
+                ParseError::AttrIden(loc, len, expr, attr) => write!(f,
+                    "\x1b[1;31mError\x1b[0m: Attribute expression can only use identifier at {line}:{col}\n{snippet}",
+                    line = loc.0 + 1,
+                    col = loc.1 + 1,
+                    snippet = long_snippet(source, *loc, *len, Some("\x1b[1;33m")) + &format!("\x1b[1;33m-> Did you mean to use subscript instead? `{expr}[{attr}]`\x1b[0m")
                 )
             },
         }

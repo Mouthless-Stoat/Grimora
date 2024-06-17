@@ -11,7 +11,7 @@ fn main() {
         // stdin.read_line(&mut buf).expect("Cannot get input");
         // buf = buf.trim().to_owned();
 
-        let buf = "a *= 1 + 9 * 7".to_string();
+        let buf = "a.a = 1".to_string();
 
         println!("{t} INPUT {t}", t = "=".repeat(20));
         println!("{buf}");

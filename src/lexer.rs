@@ -31,12 +31,14 @@ pub enum Token {
     Num(f32),
     Iden(String),
     String(String),
-    ReserveIden(Iden),
+    ResIden(Iden), // reserve iden
     Bool(bool),
     Card(String),
 
     OpenParen,
     CloseParen,
+    OpenBracket,
+    CloseBracket,
 
     // single char
     Plus,
@@ -88,6 +90,8 @@ impl Display for Token {
 
                 Token::OpenParen => "(",
                 Token::CloseParen => ")",
+                Token::OpenBracket => "[",
+                Token::CloseBracket => "]",
 
                 Token::Plus => "+",
                 Token::Minus => "-",
@@ -98,6 +102,7 @@ impl Display for Token {
                 Token::Colon => ":",
                 Token::Question => "?",
                 Token::Comma => ",",
+                Token::Dot => ".",
 
                 Token::Arrow => "=>",
 
@@ -306,6 +311,8 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                 '<' => Token::Lesser,
                 '(' => Token::OpenParen,
                 ')' => Token::CloseParen,
+                '[' => Token::OpenBracket,
+                ']' => Token::CloseBracket,
                 '.' => Token::Dot,
                 ',' => Token::Comma
             );
@@ -362,10 +369,10 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                         "or" => Token::Or,
                         "not" => Token::Not,
 
-                        "card" => Token::ReserveIden(Iden::Card),
-                        "friendly" => Token::ReserveIden(Iden::Friendly),
-                        "fight" => Token::ReserveIden(Iden::Fight),
-                        "slots" => Token::ReserveIden(Iden::Slots),
+                        "card" => Token::ResIden(Iden::Card),
+                        "friendly" => Token::ResIden(Iden::Friendly),
+                        "fight" => Token::ResIden(Iden::Fight),
+                        "slots" => Token::ResIden(Iden::Slots),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
 
