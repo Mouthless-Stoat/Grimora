@@ -67,6 +67,8 @@ pub enum Token {
     Elif,
     Else,
     When,
+    New,
+    Draw,
 
     And,
     Or,
@@ -364,6 +366,8 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
                         "elif" => Token::Elif,
                         "else" => Token::Else,
                         "when" => Token::When,
+                        "new" => Token::New,
+                        "draw" => Token::Draw,
 
                         "and" => Token::And,
                         "or" => Token::Or,
@@ -384,7 +388,9 @@ pub fn lex(source: String) -> Result<VecDeque<TokenLoc>, LexError> {
             }
         }
 
-        tokens.push((Token::EOL, (num, line.len())))
+        if !matches!(tokens.last().unwrap().0, Token::EOL) {
+            tokens.push((Token::EOL, (num, line.len())))
+        }
     }
 
     let t = tokens.pop().unwrap().1;

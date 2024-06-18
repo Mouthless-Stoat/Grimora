@@ -111,7 +111,15 @@ impl Display for TranspileError {
                     line = loc.0 + 1,
                     col = loc.1 + 1,
                     snippet = long_snippet(source, *loc, *len, Some("\x1b[1;33m")) + &format!("\x1b[1;33m-> Did you mean to use subscript instead? `{expr}[{attr}]`\x1b[0m")
+                ),
+                ParseError::InvalidNew(loc, len) => write!(f,
+                    "\x1b[1;31mError\x1b[0m: Invalid usage of `new` at {line}:{col}\n{snippet}",
+                    line = loc.0 + 1,
+                    col = loc.0 + 1,
+                    snippet = long_snippet(source, *loc, *len, None) + &format!("\x1b[1;31m Remove this `new`.\x1b[0m")
+
                 )
+
             },
         }
     }

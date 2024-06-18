@@ -9,6 +9,7 @@ pub enum Expr {
     Iden(String),
     Bool(bool),
     Card(String),
+    New(Box<Expr>),
 
     ResIden(Iden),
 
@@ -30,6 +31,7 @@ impl Display for Expr {
             Expr::Iden(iden) => write!(f, "{iden}",),
             Expr::Bool(bool) => write!(f, "{bool}",),
             Expr::Card(name) => write!(f, "CardData.from_name({name:?})"),
+            Expr::New(expr) => write!(f, "{expr}.duplicate()"),
 
             Expr::ResIden(iden) => write!(f, "{iden}"),
 

@@ -28,6 +28,7 @@ pub enum Stmt {
 
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Event(EventIden, EventType, Option<Expr>, Box<Stmt>),
+    Draw(Expr),
 }
 
 impl Display for Stmt {
@@ -80,6 +81,7 @@ impl Display for Stmt {
                     None => "".to_string(),
                 }
             ),
+            Stmt::Draw(expr) => write!(f, "fightManager.draw_card({expr})"),
         }
     }
 }

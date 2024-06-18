@@ -33,6 +33,7 @@ pub enum ParseError {
     InvalidEventIden(Loc, usize),
     InvalidEventType(Loc, usize),
     AttrIden(Loc, usize, Expr, Expr),
+    InvalidNew(Loc, usize),
 }
 
 pub struct Parser {
@@ -148,6 +149,7 @@ impl Parser {
                 Token::Var => self.parse_var_decl()?,
                 Token::If => self.parse_if()?,
                 Token::When => self.parse_event()?,
+                Token::Draw => self.parse_draw()?,
                 Token::Iden(_) => break 'o self.parse_assign()?,
                 _ => break 'o Node::Expr(self.parse_expr()?),
             })
@@ -262,6 +264,11 @@ impl Parser {
         let body = self.parse_block()?;
 
         Ok(Stmt::Event(iden, event, cond, body))
+    }
+
+    fn parse_draw(&mut self) -> Maybe<Stmt> {
+        self.next();
+        Ok(Stmt::Draw(self.parse_expr()?))
     }
 
     fn parse_assign(&mut self) -> Maybe<Node> {
@@ -449,6 +456,10 @@ impl Parser {
                     _ => Expr::Paren(Box::new(t)),
                 }
             }
+            Token::New => match self.curr() {
+                Token::Card(_) => Expr::New(Box::new(self.parse_unit()?)),
+                _ => return Err(ParseError::InvalidNew(curr.1, curr.0.get_len())),
+            },
             _ => {
                 return Err(ParseError::UnexpectedToken(
                     curr.1,
