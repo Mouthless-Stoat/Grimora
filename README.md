@@ -9,7 +9,7 @@
 [ ] Ternary If
 [ ] Elif and Else
 [X] Card Contructor
-[ ] Draw Stmt
+[X] Draw Stmt
 [ ] Augmented Assignment
 [X] Assignment
 [X] String Literal
